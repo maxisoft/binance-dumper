@@ -1,0 +1,60 @@
+[Unit]
+Description=Dump binance data into a database
+After=network.target
+
+
+[Service]
+ExecStart=/opt/binancedumper/binance_dumper
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=1024
+WorkingDirectory=/var/binancedumper
+User=binancedumper
+# lower the value bellow for patatoes PC
+Environment="SCHEDULER_CONCURRENT_TASK=10"
+
+# Hardening
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ProtectProc=invisible
+ProcSubset=pid
+ReadOnlyPaths=/run
+ReadOnlyPaths=/var
+ReadOnlyPaths=/opt/binancedumper
+ReadWritePaths=/var/binancedumper
+PermissionsStartOnly=yes
+NoNewPrivileges=true
+PrivateIPC=true
+PrivateUsers=true
+
+ProtectHostname=true
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+InaccessiblePaths=/dev/shm
+SystemCallFilter=~memfd_create
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RemoveIPC=true
+SystemCallFilter=@system-service
+
+## Uncomment and fine tune cpu / io priority
+#CPUWeight=20
+#CPUQuota=85%
+#IOWeight=20
+#MemorySwapMax=5%
+#MemoryAccounting=true
+#MemoryHigh=56M
+#MemoryMax=256M
+#OOMScoreAdjust=900
+#Nice=10
+#CPUSchedulingPolicy=idle
+#IOSchedulingClass=idle
+
+[Install]
+WantedBy = multi-user.target
