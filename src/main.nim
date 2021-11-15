@@ -6,6 +6,8 @@ import std/enumerate
 import std/monotimes
 import std/sequtils
 import std/times
+import std/tables
+import std/parseutils
 import binance/data
 import binance/websocket
 import binance/csvwriter
@@ -14,6 +16,7 @@ import binance/state
 import binance/http
 import binance/scheduler
 import binance/pairtracker
+import binance/httppool
 
 
 let startMonoTime = getMonoTime()
@@ -27,22 +30,15 @@ proc loadPairTracker(): PairTracker =
         let content = f.readAll()
         result.importPairJson(parseJson(content))
 
-proc createFreshPairTracker(stateLoader: StateLoader): Future[PairTracker] {.async.} =
+proc createFreshPairTracker(stateLoader: StateLoader, pool: HttpPool): Future[PairTracker] {.async.} =
     result = newPairTracker()
-    let job = newUpdatePairTrackerJob(stateLoader, result, getMonoTime())
+    let job = newUpdatePairTrackerJob(stateLoader, result, newBinanceHttpClient(pool), getMonoTime())
     await job.updatePairs()
-
-when defined(useRealtimeGC):
-    const GC_MAX_PAUSE = initDuration(milliseconds=100).inMicroseconds.int
-    proc GC_realtime(strongAdvice = false) {.inline.} =
-        GC_step(GC_MAX_PAUSE div 3, strongAdvice)
-else:
-    proc GC_realtime(strongAdvice = false) {.inline.} =
-        discard
 
 proc main() =
     let pairTrackerInstance = loadPairTracker()
     let stateLoader = newStateLoader("state.json")
+    let pool = HttpPool()
     var st: State = stateLoader.get()
     try:
         waitFor stateLoader.load()
@@ -52,14 +48,20 @@ proc main() =
         stateLoader.close()
     st = stateLoader.get
     st.incrementVersion()
-    echo st.version
-    let freshPairTracker = waitFor createFreshPairTracker(stateLoader)
+    let freshPairTracker = waitFor createFreshPairTracker(stateLoader, pool)
     let sched = newJobScheduler(stateLoader)
-    var pairs = newSeq[string]()
+    if existsEnv("SCHEDULER_CONCURRENT_TASK"):
+        var maxTasks: int64
+        let v = getEnv("SCHEDULER_CONCURRENT_TASK")
+        if parseBiggestInt(v, maxTasks) == 0:
+            raise Exception.newException(fmt"invalid SCHEDULER_CONCURRENT_TASK = {v}")
+        sched.maxTasks = maxTasks
+    
+    var pairs = newSeqOfCap[string](len(st.openInterestHist))
     for p in freshPairTracker.listPair():
         pairs.add(p)
     let periods = ["5m", "1h", "1d"]
-    let client = newBinanceHttpClient()
+    let client = newBinanceHttpClient(pool)
     for i, pair in enumerate(pairs):
         if not dirExists(pair):
             createDir(pair)
@@ -89,12 +91,13 @@ proc main() =
                 let jobLSR = newLongShortRatioJob(symbol = pair, period = period, startTime = -1, stateLoader = stateLoader, csvWritter = csvLSR, client = client, dueTime = startMonoTime)
                 sched.add(jobLSR)
 
-    sched.add(newUpdatePairTrackerJob(stateLoader, pairTrackerInstance, getMonoTime()))
+    sched.add(newUpdatePairTrackerJob(stateLoader, pairTrackerInstance, client, getMonoTime()))
 
     asyncCheck stateLoader.save()
     if len(getEnv("BTC_WEBSOCKET", "")) > 0:
         # BTC_WEBSOCKET => write down btc depth and markprice
         # Generate large files overtime
+        echo "Processing btc websocket too..."
         let b = newFutureBinanceWebSocket("wss://fstream.binance.com/ws/btcusdt@depth20")
         let csv_w = newCsvWritter("btcusdt_depth20")
         b.callback = csv_w.makeCallback(bookStreamToCsv)
@@ -108,22 +111,7 @@ proc main() =
         asyncCheck csv_mark.loop()
         asyncCheck csv_w.loop()
     let task = sched.loop()
-    when defined(useRealtimeGC):
-        GC_setMaxPause(GC_MAX_PAUSE)
-        GC_step(GC_MAX_PAUSE, true)
-        if not existsEnv("GC_ENABLE"):
-            GC_disable()
-        else:
-            GC_enable()
-
-        asyncCheck task
-        var i: int64 = 0
-        while true:
-            inc i
-            GC_realtime(strongAdvice = (i mod 100) == 0)
-            sleep(100)
-    else:
-        waitFor task
+    waitFor task
 
 when isMainModule:
     main()

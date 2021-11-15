@@ -1,5 +1,4 @@
 import asyncdispatch
-import ws
 import std/os
 import std/json
 import std/jsonutils
@@ -15,14 +14,13 @@ type
 
 type
   State* = object
-    version*: int64
-    schema_version*: int
-    openInterestHist*: Table[string, SavedTimestampState]
-    topLongShortAccountRatio*: Table[string, SavedTimestampState]
-    topLongShortPositionRatio*: Table[string, SavedTimestampState]
-    globalLongShortAccountRatio*: Table[string, SavedTimestampState]
-    takerlongshortRatio*: Table[string, SavedTimestampState]
-
+    version: int64
+    schema_version: int
+    openInterestHist: Table[string, SavedTimestampState]
+    topLongShortAccountRatio: Table[string, SavedTimestampState]
+    topLongShortPositionRatio: Table[string, SavedTimestampState]
+    globalLongShortAccountRatio: Table[string, SavedTimestampState]
+    takerlongshortRatio: Table[string, SavedTimestampState]
 
 const LATEST_SCHEMA_VERSION = 1
 
@@ -35,6 +33,28 @@ proc incrementVersion*(self: var State) =
 
 proc compareVersion*(self: var State, version: int64): int64 =
     return self.version - version
+
+
+func version*(self: var State): int64 {.inline.} =
+    return self.version
+
+func schema_version*(self: var State): int {.inline.} =
+    return self.schema_version
+
+func openInterestHist*(self: var State): var Table[string, SavedTimestampState] {.inline.} =
+    return self.openInterestHist
+
+func topLongShortAccountRatio*(self: var State): var Table[string, SavedTimestampState] {.inline.} =
+    return self.topLongShortAccountRatio
+
+func topLongShortPositionRatio*(self: var State): var Table[string, SavedTimestampState] {.inline.} =
+    return self.topLongShortPositionRatio
+
+func globalLongShortAccountRatio*(self: var State): var Table[string, SavedTimestampState] {.inline.} =
+    return self.globalLongShortAccountRatio
+
+func takerlongshortRatio*(self: var State): var Table[string, SavedTimestampState] {.inline.} =
+    return self.takerlongshortRatio
 
 type
   StateLoader* = ref object

@@ -15,6 +15,7 @@ import ./http
 import ./csvwriter
 import ./state
 import ./pairtracker
+import asynctools/asyncsync
 
 
 type 
@@ -27,7 +28,6 @@ type
 
     BinanceHttpJob {.inheritable.} = ref object of CsvWriterJob
         client: BinanceHttpClient
-        clientOwned: BinanceHttpClient
         clientLock: Lock
 
     BaseBinanceHistorycalEntryJob = ref object of BinanceHttpJob
@@ -43,6 +43,7 @@ type
 
     UpdatePairTrackerJob* = ref object of BaseJob
         tracker: PairTracker
+        client: BinanceHttpClient
 
     
 proc state(self: BaseJob): var State {.inline.} = result = self.stateLoader.get
@@ -67,11 +68,9 @@ proc parsePeriod*(period: string): Duration =
     )
         
 proc finalizer*(job: BinanceHttpJob) =
-    if job.clientOwned != nil:
-        job.clientOwned.finalizer()
     deinitLock(job.clientLock)
 
-proc newBaseBinanceHistorycalEntryJob[T](symbol: string, period: string, startTime: int64, stateLoader: StateLoader, csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime, clientOwned = false): T = 
+proc newBaseBinanceHistorycalEntryJob[T](symbol: string, period: string, startTime: int64, stateLoader: StateLoader, csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): T = 
     when defined(gcOrc) or defined(gcArc):
         result.new()
     else:
@@ -85,8 +84,6 @@ proc newBaseBinanceHistorycalEntryJob[T](symbol: string, period: string, startTi
     result.client = client
     result.dueTime = dueTime
     result.parsedPeriod = parsePeriod(period)
-    if clientOwned:
-        result.clientOwned = client
 
 template newBBHEJob(x: untyped): untyped =
     newBaseBinanceHistorycalEntryJob[x](symbol = symbol, period = period, startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client, dueTime = dueTime)
@@ -128,16 +125,7 @@ method incrementDueTime(this: BaseBinanceHistorycalEntryJob) =
     this.dueTime = max(this.dueTime, getMonoTime()) + min(this.parsedPeriod, initDuration(hours=1))
 
 proc doListEntries[T](self: BaseBinanceHistorycalEntryJob, startTime: int64, limit: int, getter: proc (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[T]]): Future[seq[BaseBinanceHistorycalEntry]] {.async.} =
-    var tmp: seq[T]
-    try:
-        tmp = await getter(self.client, startTime = startTime, limit = limit)
-    except ProtocolError:
-        withLock(self.clientLock):
-            if self.clientOwned != nil:
-                self.clientOwned.finalizer()
-            self.client = newBinanceHttpClient()
-            self.clientOwned = self.client
-        tmp = await getter(self.client, startTime = startTime, limit = limit)
+    let tmp: seq[T] = await getter(self.client, startTime = startTime, limit = limit)
     result = newSeqOfCap[BaseBinanceHistorycalEntry](len(tmp))
     for item in tmp:
         result.add(item)
@@ -214,17 +202,18 @@ method invoke(this: BaseBinanceHistorycalEntryJob) {.async.} =
             # there's still more history to download
             this.dueTime = max(this.dueTime, getMonoTime()) + initDuration(seconds = 1)
 
-proc newUpdatePairTrackerJob*(stateLoader: StateLoader, tracker: PairTracker, dueTime: MonoTime): UpdatePairTrackerJob = 
+proc newUpdatePairTrackerJob*(stateLoader: StateLoader, tracker: PairTracker, client: BinanceHttpClient, dueTime: MonoTime): UpdatePairTrackerJob = 
     result.new()
     result.stateLoader = stateLoader
     result.dueTime = dueTime
     result.tracker = tracker
+    result.client = client
 
 proc updatePairs*(self: UpdatePairTrackerJob) {.async.} =
     await self.invoke()
 
 method invoke(this: UpdatePairTrackerJob) {.async.} =
-    let exchangeInfo = await newBinanceHttpClient().exchangeInfo()
+    let exchangeInfo = await this.client.exchangeInfo()
     let symbols = exchangeInfo{"symbols"}
     var updated = false
     for s in symbols:
@@ -252,37 +241,68 @@ type
         queue: HeapQueue[BaseJob]
         stateVersion: int64
         stateLoader: StateLoader
+        alock: AsyncLock
+        maxTaskCount: int64
 
-const SCHEDULER_MIN_SLEEP_TICK = 250
+const 
+    SCHEDULER_MIN_SLEEP_TICK = 250
+    SCHEDULER_MAX_CONCURRENT_TASK = 20
+    SCHEDULER_TASK_TIMEOUT = 10 * 60 * 1000
 
 proc newJobScheduler*(loader: StateLoader): JobScheduler =
     result.new()
     result.queue = initHeapQueue[BaseJob]()
     result.stateVersion = loader.get().version
     result.stateLoader = loader
+    result.alock = newAsyncLock()
+    result.maxTaskCount = SCHEDULER_MAX_CONCURRENT_TASK
+
+proc `maxTasks=`*(self: JobScheduler, value: int64) =
+    self.maxTaskCount = min(value, SCHEDULER_MAX_CONCURRENT_TASK)
 
 proc add*(self: JobScheduler, job: BaseJob) =
     self.queue.push(job)
+
+proc process(self: JobScheduler, item: BaseJob) {.async.} =
+    let dueTime = item.dueTime
+    try:
+        await item.invoke()
+        if item.dueTime == dueTime:
+            item.incrementDueTime()
+    finally:
+        self.queue.push(item)
+    
+    if item.state.compareVersion(self.stateVersion) > 0:
+        await self.alock.acquire()
+        try:
+            if item.state.compareVersion(self.stateVersion) > 0:
+                if await withTimeout(self.stateLoader.save(), 30_000):
+                    # timeout is required to prevent holding lock all time
+                    self.stateVersion = item.state.version
+                else:
+                    raise TimeoutError.newException("unable to save state. Most likely a IO error")
+        finally:
+            self.alock.release()
     
 proc loop*(self: JobScheduler) {.async.} =
     while len(self.queue) > 0:
         let now = getMonoTime()
         let first = self.queue[0]
         if first.dueTime > now:
-            let sleepDuration = min(SCHEDULER_MIN_SLEEP_TICK, (first.dueTime - now).inMilliseconds)
+            let sleepDuration = min(SCHEDULER_MIN_SLEEP_TICK, abs(first.dueTime - now).inMilliseconds)
             await sleepAsync(sleepDuration.float)
             continue
-        var item = self.queue.pop()
-        let dueTime = item.dueTime
-        try:
-            await item.invoke() 
-            # TODO once https://github.com/nim-lang/Nim/issues/7316 is fixed
-            # batch process more async work (eg invoke())
-            if item.dueTime == dueTime:
-                item.incrementDueTime()
-        finally:
-            self.queue.push(item)
+        let cap = min(self.maxTaskCount, len(self.queue))
+        var jobs = newSeqOfCap[Future[void]](cap)
+        for i in 0..<cap:
+            var item = self.queue[0]
+            if item.dueTime <= now:
+                item = self.queue.pop()
+                if item.dueTime <= now:
+                    jobs.add(process(self, item))
+                else:
+                    self.queue.push(item)
+                
+        if not await withTimeout(all jobs, SCHEDULER_TASK_TIMEOUT):
+            raise TimeoutError.newException("SCHEDULER_TASK_TIMEOUT")
         
-        if item.state.compareVersion(self.stateVersion) > 0:
-            await self.stateLoader.save()
-            self.stateVersion = item.state.version

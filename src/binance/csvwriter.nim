@@ -11,11 +11,10 @@ type
         hourly, daily, monthly
 
     CsvWritter* = ref object
-        identifier*: string
+        identifier: string
         processingQueue: Deque[(string, Time)]
         processingThreshold*: int
         timeUnit: CsvTimeUnit
-
 
 proc newCsvWritter*(identifer: string, timeUnit: CsvTimeUnit = CsvTimeUnit.hourly, processingThreshold = 600): CsvWritter =
     assert processingThreshold > 0
@@ -119,3 +118,5 @@ proc loop*(self: CsvWritter) {.async.} =
         await drainProcessingQueue(self)
         await sleepAsync(1000)
 
+func identifier*(self: var CsvWritter): string {.inline.} =
+    return self.identifier

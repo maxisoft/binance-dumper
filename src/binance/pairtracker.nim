@@ -6,12 +6,11 @@ import std/jsonutils
 
 type 
     PairEntry* = object
-        pair*: string
-        firstSeen*: int64
+        pair: string
+        firstSeen: int64
 
     PairTracker* = ref object
         entries: OrderedTable[string, PairEntry]
-
 
 proc toCsv*(self: PairEntry): string =
     result.add(self.pair)
@@ -52,3 +51,9 @@ proc importPairJson*(self: PairTracker, node: JsonNode) =
     let entries = to(node, seq[PairEntry])
     for e in entries:
         addPairEntry(self, e)
+
+func pair*(self: var PairEntry): string {.inline.} =
+    return self.pair
+
+func firstSeen*(self: var PairEntry): int64 {.inline.} =
+    return self.firstSeen

@@ -1,9 +1,5 @@
 import asyncdispatch
 import ws
-import std/sets
-import std/json
-import std/strformat
-import std/math
 import std/times
 import std/monotimes
 
