@@ -7,6 +7,7 @@ import std/httpclient
 import std/deques
 import std/os
 import std/lists
+import ./cancellationtoken
 
 const 
     USER_AGENT = "nim/1.0"
@@ -37,8 +38,6 @@ iterator clients*(self: HttpPool): var AsyncHttpClient =
 iterator entries*(self: HttpPool): var PoolEntry =
     for item in mitems(self.pool):
         yield item
-        
-
 
 proc rent*(self: HttpPool, useCount = 1, throwOnConnectLimit=false): AsyncHttpClient =
     var freshlyCreatedCounter = 0
@@ -97,19 +96,15 @@ proc notify(self: HttpPool) =
 
     callSoon(completeAll)
 
-proc isClosed(self: AsyncHttpClient): bool =
+proc isClosed(self: AsyncHttpClient, nilCountsTrue = false): bool =
     let s = self.getSocket()
-    if s.isNil: return true
+    if s.isNil: return nilCountsTrue
     result = s.isClosed
 
 proc shouldClose(n: DoublyLinkedNode[PoolEntry]): bool {.inline.} =
     result = false
     let now = getMonoTime()
     if n.value.useCounter <= 0 and n.value.client.isClosed() and abs(now - n.value.creationDate) > oneMinute:
-        return true
-    if n.value.useCounter <= 0 and abs(now - n.value.creationDate) > 5 * oneMinute:
-        return true
-    if n.value.useCounter <= 0 and n.value.useCounter != n.value.useCounter and abs(now - n.value.creationDate) > oneMinute:
         return true
     if abs(now - n.value.lastUseDate) > 2 * oneHour: # no connections should last 2hr
         return true
@@ -140,6 +135,11 @@ proc cleanup*(self: HttpPool) =
                 stable = false
                 notify(self)
                 break
+
+proc loop*(self: HttpPool, token: CancellationToken, sleepTime = 60_000) {.async.} =
+    while not token.cancelled:
+        await sleepAsync(sleepTime)
+        cleanup(self)
 
 template withClient*(self: HttpPool, code: untyped) =
     let client {.inject.} = self.rent()

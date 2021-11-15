@@ -8,6 +8,7 @@ import std/sequtils
 import std/times
 import std/tables
 import std/parseutils
+import binance/cancellationtoken
 import binance/data
 import binance/websocket
 import binance/csvwriter
@@ -36,6 +37,9 @@ proc createFreshPairTracker(stateLoader: StateLoader, pool: HttpPool): Future[Pa
     await job.updatePairs()
 
 proc main() =
+    var cancellationToken = newCancellationToken()
+    defer:
+        cancellationToken.cancel(throws = false)
     let pairTrackerInstance = loadPairTracker()
     let stateLoader = newStateLoader("state.json")
     let pool = HttpPool()
@@ -106,11 +110,13 @@ proc main() =
         let csv_mark = newCsvWritter("markprice")
         bmp.callback = csv_mark.makeCallback(markPriceToCsv, iterateArray = true)
         waitFor bmp.connect()
-        asyncCheck b.loop()
-        asyncCheck bmp.loop()
-        asyncCheck csv_mark.loop()
-        asyncCheck csv_w.loop()
-    let task = sched.loop()
+        asyncCheck b.loop(cancellationToken)
+        asyncCheck bmp.loop(cancellationToken)
+        asyncCheck csv_mark.loop(cancellationToken)
+        asyncCheck csv_w.loop(cancellationToken)
+
+    asyncCheck pool.loop(cancellationToken)
+    let task = sched.loop(cancellationToken)
     waitFor task
 
 when isMainModule:

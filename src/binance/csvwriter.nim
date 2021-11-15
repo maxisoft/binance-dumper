@@ -5,6 +5,7 @@ import std/math
 import std/times
 import std/deques
 import std/asyncfile
+import ./cancellationtoken
 
 type 
     CsvTimeUnit* = enum
@@ -113,8 +114,8 @@ proc drainProcessingQueue(self: CsvWritter) {.async.} = await drainProcessingQue
 
 proc processNow*(self: CsvWritter) {.async.} = await drainProcessingQueue(self, 0)
 
-proc loop*(self: CsvWritter) {.async.} =
-    while true:
+proc loop*(self: CsvWritter, token: CancellationToken) {.async.} =
+    while not token.cancelled:
         await drainProcessingQueue(self)
         await sleepAsync(1000)
 

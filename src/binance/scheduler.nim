@@ -9,13 +9,14 @@ import std/strutils
 import std/parseutils
 import std/heapqueue
 import std/asyncfile
-import std/locks
+import asynctools/asyncsync
+import ./cancellationtoken
 import ./data
 import ./http
 import ./csvwriter
 import ./state
 import ./pairtracker
-import asynctools/asyncsync
+
 
 
 type 
@@ -28,7 +29,6 @@ type
 
     BinanceHttpJob {.inheritable.} = ref object of CsvWriterJob
         client: BinanceHttpClient
-        clientLock: Lock
 
     BaseBinanceHistorycalEntryJob = ref object of BinanceHttpJob
         symbol: string
@@ -66,16 +66,9 @@ proc parsePeriod*(period: string): Duration =
         of 'M': initDuration(days = 30 * value)
         else: raise Exception.newException("not a valid period")
     )
-        
-proc finalizer*(job: BinanceHttpJob) =
-    deinitLock(job.clientLock)
 
 proc newBaseBinanceHistorycalEntryJob[T](symbol: string, period: string, startTime: int64, stateLoader: StateLoader, csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): T = 
-    when defined(gcOrc) or defined(gcArc):
-        result.new()
-    else:
-        result.new(proc (x: T) = x.finalizer())
-    initLock(result.clientLock)
+    result.new()
     result.symbol = symbol
     result.period = period
     result.startTime = startTime
@@ -284,8 +277,8 @@ proc process(self: JobScheduler, item: BaseJob) {.async.} =
         finally:
             self.alock.release()
     
-proc loop*(self: JobScheduler) {.async.} =
-    while len(self.queue) > 0:
+proc loop*(self: JobScheduler, token: CancellationToken) {.async.} =
+    while len(self.queue) > 0 and not token.cancelled:
         let now = getMonoTime()
         let first = self.queue[0]
         if first.dueTime > now:

@@ -2,6 +2,7 @@ import asyncdispatch
 import ws
 import std/times
 import std/monotimes
+import ./cancellationtoken
 
 type FutureBinanceWebSocket* = ref object
     ws: WebSocket
@@ -9,7 +10,6 @@ type FutureBinanceWebSocket* = ref object
     connect_counter: int64
     message_counter: int64
     ping_time: MonoTime
-    request_stop*: bool
     callback*: proc (data: string): bool
 
 
@@ -24,9 +24,8 @@ proc connect*(self: FutureBinanceWebSocket) {.async.} =
         self.ping_time = getMonoTime()
         self.connect_counter += 1
 
-
-proc loop*(self: FutureBinanceWebSocket) {.async.} =
-    while not self.request_stop:
+proc loop*(self: FutureBinanceWebSocket, cancellationToken: CancellationToken) {.async.} =
+    while not cancellationToken.cancelled:
         let t = getMonoTime()
         if self.ws == nil or self.ws.readyState != ReadyState.Open:
             await connect(self)
@@ -42,7 +41,7 @@ proc loop*(self: FutureBinanceWebSocket) {.async.} =
         else:
             echo data
         self.message_counter += 1
-        if getMonoTime() - t < initDuration(milliseconds = 50) and not self.request_stop:
+        if getMonoTime() - t < initDuration(milliseconds = 50) and not cancellationToken.cancelled:
             await sleepAsync(50)
 
     if self.ws != nil:
