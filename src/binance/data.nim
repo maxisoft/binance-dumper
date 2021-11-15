@@ -5,6 +5,24 @@ import std/enumerate
 import std/times
 import std/parseutils
 
+type
+    BaseBinanceHistorycalEntry* {.inheritable.} = ref object of RootObj
+        symbol*: string
+        timestamp*: string
+
+    OpenInterestHist* = ref object of BaseBinanceHistorycalEntry
+        sumOpenInterest*: string
+        sumOpenInterestValue*: string
+
+    BaseLongShortRatio* {.inheritable.} = ref object of BaseBinanceHistorycalEntry
+        longShortRatio*: string
+        longAccount*: string
+        shortAccount*: string
+
+    TopTraderLongShortRatioAccounts* = ref object of BaseLongShortRatio
+    TopTraderLongShortRatioPositions* = ref object of BaseLongShortRatio
+    LongShortRatio* = ref object of BaseLongShortRatio
+
 proc getNodeStr(node: JsonNode): string {.inline.} =
     if node.kind == JString:
         return node.getStr()
@@ -113,3 +131,33 @@ iterator multiMarkPriceToCsv*(payload: string): (string, Time) =
 
 proc markPriceCsvColumns*(): array[6, string] =
     return ["time", "symbol", "mark_price", "index_price", "settle_price", "funding_rate"]
+
+
+method toCsv*(this: BaseBinanceHistorycalEntry, includeSymbol = false):string {.base.} =
+    raise Exception.newException("must be implemented")
+
+method date*(this: BaseBinanceHistorycalEntry): Time {.base inline.} =
+    result = binanceTSToTime(this.timestamp)
+
+method toCsv*(this: OpenInterestHist, includeSymbol = false): string =
+    result.add(this.timestamp)
+    if includeSymbol:
+        result.add(',')
+        result.add(this.symbol)
+    result.add(',')
+    result.add(this.sumOpenInterest)
+    result.add(',')
+    result.add(this.sumOpenInterestValue)
+
+
+method toCsv*(this: BaseLongShortRatio, includeSymbol = false): string =
+    result.add(this.timestamp)
+    if includeSymbol:
+        result.add(',')
+        result.add(this.symbol)
+    result.add(',')
+    result.add(this.longShortRatio)
+    result.add(',')
+    result.add(this.longAccount)
+    result.add(',')
+    result.add(this.shortAccount)

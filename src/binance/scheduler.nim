@@ -3,19 +3,18 @@ import std/json
 import std/times
 import std/monotimes
 import std/httpclient
-import std/monotimes
-import std/uri
 import std/tables
 import std/strformat
 import std/strutils
-import binance_http
-import csv_writer
-import state
 import std/parseutils
 import std/heapqueue
-import pair_tracker
 import std/asyncfile
 import std/locks
+import ./data
+import ./http
+import ./csvwriter
+import ./state
+import ./pairtracker
 
 
 type 
@@ -89,8 +88,11 @@ proc newBaseBinanceHistorycalEntryJob[T](symbol: string, period: string, startTi
     if clientOwned:
         result.clientOwned = client
 
+template newBBHEJob(x: untyped): untyped =
+    newBaseBinanceHistorycalEntryJob[x](symbol = symbol, period = period, startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client, dueTime = dueTime)
+
 proc newOpenInterestHistJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader, csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): OpenInterestHistJob = 
-    result = newBaseBinanceHistorycalEntryJob[OpenInterestHistJob](symbol = symbol, period = period, startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client, dueTime = dueTime)
+    result = newBBHEJob(OpenInterestHistJob)
 
 proc newTopTraderLongShortRatioAccountsJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader, csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): TopTraderLongShortRatioAccountsJob = 
     result = newBaseBinanceHistorycalEntryJob[TopTraderLongShortRatioAccountsJob](symbol = symbol, period = period, startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client, dueTime = dueTime)

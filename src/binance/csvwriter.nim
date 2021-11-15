@@ -3,7 +3,6 @@ import std/json
 import std/strformat
 import std/math
 import std/times
-import std/monotimes
 import std/deques
 import std/asyncfile
 
@@ -26,9 +25,10 @@ proc newCsvWritter*(identifer: string, timeUnit: CsvTimeUnit = CsvTimeUnit.hourl
     result.processingThreshold = processingThreshold
     result.timeUnit = timeUnit
 
-const hourly_format = "yyyy-MM-dd'_'HH"
-const daily_format = "yyyy-MM-dd"
-const monthly_format = "yyyy-MM"
+const 
+    hourly_format = "yyyy-MM-dd'_'HH" 
+    daily_format = "yyyy-MM-dd"
+    monthly_format = "yyyy-MM"
 
 proc timeFormat*(self: CsvWritter): string {.inline.} = 
     return (case self.timeUnit

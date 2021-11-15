@@ -5,14 +5,15 @@ import std/json
 import std/enumerate
 import std/monotimes
 import std/sequtils
-import binance_data
-import binance_ws
-import csv_writer
+import std/times
+import binance/data
+import binance/websocket
+import binance/csvwriter
 import asyncdispatch
-import state
-import binance_http
-import client_sched
-import pair_tracker
+import binance/state
+import binance/http
+import binance/scheduler
+import binance/pairtracker
 
 
 let startMonoTime = getMonoTime()
@@ -30,6 +31,14 @@ proc createFreshPairTracker(stateLoader: StateLoader): Future[PairTracker] {.asy
     result = newPairTracker()
     let job = newUpdatePairTrackerJob(stateLoader, result, getMonoTime())
     await job.updatePairs()
+
+when defined(useRealtimeGC):
+    const GC_MAX_PAUSE = initDuration(milliseconds=100).inMicroseconds.int
+    proc GC_realtime(strongAdvice = false) {.inline.} =
+        GC_step(GC_MAX_PAUSE div 3, strongAdvice)
+else:
+    proc GC_realtime(strongAdvice = false) {.inline.} =
+        discard
 
 proc main() =
     let pairTrackerInstance = loadPairTracker()
@@ -83,23 +92,35 @@ proc main() =
     sched.add(newUpdatePairTrackerJob(stateLoader, pairTrackerInstance, getMonoTime()))
 
     asyncCheck stateLoader.save()
-    let b = newFutureBinanceWebSocket("wss://fstream.binance.com/ws/btcusdt@depth20")
-    let csv_w = newCsvWritter("btcusdt_depth20")
-    b.callback = csv_w.makeCallback(bookStreamToCsv)
-    waitFor b.connect()
-    let bmp = newFutureBinanceWebSocket("wss://fstream.binance.com/ws/!markPrice@arr")
-    let csv_mark = newCsvWritter("markprice")
-    bmp.callback = csv_mark.makeCallback(markPriceToCsv, iterateArray = true)
-    waitFor bmp.connect()
-    asyncCheck b.loop()
-    asyncCheck bmp.loop()
-    asyncCheck csv_mark.loop()
-    asyncCheck sched.loop()
-    let task = csv_w.loop()
+    if len(getEnv("BTC_WEBSOCKET", "")) > 0:
+        # BTC_WEBSOCKET => write down btc depth and markprice
+        # Generate large files overtime
+        let b = newFutureBinanceWebSocket("wss://fstream.binance.com/ws/btcusdt@depth20")
+        let csv_w = newCsvWritter("btcusdt_depth20")
+        b.callback = csv_w.makeCallback(bookStreamToCsv)
+        waitFor b.connect()
+        let bmp = newFutureBinanceWebSocket("wss://fstream.binance.com/ws/!markPrice@arr")
+        let csv_mark = newCsvWritter("markprice")
+        bmp.callback = csv_mark.makeCallback(markPriceToCsv, iterateArray = true)
+        waitFor bmp.connect()
+        asyncCheck b.loop()
+        asyncCheck bmp.loop()
+        asyncCheck csv_mark.loop()
+        asyncCheck csv_w.loop()
+    let task = sched.loop()
     when defined(useRealtimeGC):
+        GC_setMaxPause(GC_MAX_PAUSE)
+        GC_step(GC_MAX_PAUSE, true)
+        if not existsEnv("GC_ENABLE"):
+            GC_disable()
+        else:
+            GC_enable()
+
         asyncCheck task
+        var i: int64 = 0
         while true:
-            GC_step(50)
+            inc i
+            GC_realtime(strongAdvice = (i mod 100) == 0)
             sleep(100)
     else:
         waitFor task

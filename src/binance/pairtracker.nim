@@ -1,20 +1,7 @@
-import asyncdispatch
 import std/json
 import std/times
-import std/monotimes
-import std/httpclient
-import std/monotimes
-import std/uri
 import std/tables
-import std/strformat
 import std/strutils
-import std/sets
-import std/json
-import binance_http
-import csv_writer
-import state
-import std/parseutils
-import std/heapqueue
 import std/jsonutils
 
 type 

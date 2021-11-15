@@ -7,6 +7,7 @@ import std/monotimes
 import std/uri
 import std/tables
 import std/parseutils
+import ./data
 
 
 type 
@@ -20,29 +21,11 @@ type
 
     BinanceHttpClient* = ref object
         client*: AsyncHttpClient
-    
-    BaseBinanceHistorycalEntry* {.inheritable.} = ref object of RootObj
-        symbol*: string
-        timestamp*: string
-
-    OpenInterestHist* = ref object of BaseBinanceHistorycalEntry
-        sumOpenInterest*: string
-        sumOpenInterestValue*: string
-
-    BaseLongShortRatio* {.inheritable.} = ref object of BaseBinanceHistorycalEntry
-        longShortRatio*: string
-        longAccount*: string
-        shortAccount*: string
-
-    TopTraderLongShortRatioAccounts* = ref object of BaseLongShortRatio
-    TopTraderLongShortRatioPositions* = ref object of BaseLongShortRatio
-    LongShortRatio* = ref object of BaseLongShortRatio
 
 var rateLimiterSingleton = BinanceRateLimiterSingleton()
 
 proc rateLimiter(self: var BinanceRateLimiterSingleton): var BinanceRateLimiter =
     if self.rl.isNil:
-        # TODO lock pattern ?
         self.rl.new()
         self.rl.tick = getMonoTime()
         self.latestRequestLimit = 0
@@ -51,44 +34,11 @@ proc rateLimiter(self: var BinanceRateLimiterSingleton): var BinanceRateLimiter 
 proc rateLimiter*(): var BinanceRateLimiter =
     result = rateLimiterSingleton.rateLimiter
 
-method toCsv*(this: BaseBinanceHistorycalEntry, includeSymbol = false): string {.base.} =
-    raise Exception.newException("must be implemented")
-
-method date*(this: BaseBinanceHistorycalEntry): Time {.base.} =
-    var value: int64
-    if parseBiggestInt(this.timestamp, value) == 0:
-        raise Exception.newException("unable to parse timestamp")
-    else:
-        result = fromUnixFloat(value.float / 1000.0)
-
-method toCsv*(this: OpenInterestHist, includeSymbol = false): string =
-    result.add(this.timestamp)
-    if includeSymbol:
-        result.add(',')
-        result.add(this.symbol)
-    result.add(',')
-    result.add(this.sumOpenInterest)
-    result.add(',')
-    result.add(this.sumOpenInterestValue)
-
-
-method toCsv*(this: BaseLongShortRatio, includeSymbol = false): string =
-    result.add(this.timestamp)
-    if includeSymbol:
-        result.add(',')
-        result.add(this.symbol)
-    result.add(',')
-    result.add(this.longShortRatio)
-    result.add(',')
-    result.add(this.longAccount)
-    result.add(',')
-    result.add(this.shortAccount)
-
 const 
     USER_AGENT = "nim/1.0"
     BASE_URL = "https://fapi.binance.com"
     RATE_LIMITER_DEFAULT_LIMIT = 600 # 2400 last time checked
-    RATE_LIMITER_LIMIT_SECURITY_FACTOR = 0.2 # FIXME for now we limit the request/second even more (avoiding bans)
+    RATE_LIMITER_LIMIT_SECURITY_FACTOR = 0.2 # for now we limit the request/second even more (avoiding bans)
     RATE_LIMITER_SLEEP_TICK = 50 # ms
     oneMinute = initDuration(minutes = 1)
 
@@ -234,14 +184,17 @@ proc getHistoricalEntries*[T](self: BinanceHttpClient, url: string, symbol: stri
         raise HttpRequestError.newException("invalid json content")
     return j.to(seq[T])
 
+template historicalEntries(x: untyped, path: static[string]): Future[seq[untyped]] =
+    getHistoricalEntries[x](self, path, symbol = symbol, period = period, limit = limit, startTime = startTime, endTime = endTime)
+
 proc openInterestHist*(self: BinanceHttpClient, symbol: string, period = "5m", limit = -1, startTime: int64 = -1, endTime: int64 = -1): Future[seq[OpenInterestHist]] {.async.} =
-    result = await getHistoricalEntries[OpenInterestHist](self, "futures/data/openInterestHist", symbol = symbol, period = period, limit = limit, startTime = startTime, endTime = endTime)
+    result = await historicalEntries(OpenInterestHist, "futures/data/openInterestHist")
 
 proc topTraderLongShortRatioAccounts*(self: BinanceHttpClient, symbol: string, period = "5m", limit = -1, startTime: int64 = -1, endTime: int64 = -1): Future[seq[TopTraderLongShortRatioAccounts]] {.async.} =
-    result = await getHistoricalEntries[TopTraderLongShortRatioAccounts](self, "futures/data/topLongShortAccountRatio", symbol = symbol, period = period, limit = limit, startTime = startTime, endTime = endTime)
+    result = await historicalEntries(TopTraderLongShortRatioAccounts, "futures/data/topLongShortAccountRatio")
 
 proc topTraderLongShortRatioPositions*(self: BinanceHttpClient, symbol: string, period = "5m", limit = -1, startTime: int64 = -1, endTime: int64 = -1): Future[seq[TopTraderLongShortRatioPositions]] {.async.} =
-    result = await getHistoricalEntries[TopTraderLongShortRatioPositions](self, "futures/data/topLongShortPositionRatio", symbol = symbol, period = period, limit = limit, startTime = startTime, endTime = endTime)
+    result = await historicalEntries(TopTraderLongShortRatioPositions, "futures/data/topLongShortPositionRatio")
     
 proc longShortRatio*(self: BinanceHttpClient, symbol: string, period = "5m", limit = -1, startTime: int64 = -1, endTime: int64 = -1): Future[seq[LongShortRatio]] {.async.} =
-    result = await getHistoricalEntries[LongShortRatio](self, "/futures/data/globalLongShortAccountRatio", symbol = symbol, period = period, limit = limit, startTime = startTime, endTime = endTime)
+    result = await historicalEntries(LongShortRatio, "/futures/data/globalLongShortAccountRatio")
