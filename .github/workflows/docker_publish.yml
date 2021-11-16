@@ -1,0 +1,62 @@
+name: Docker image build and publish
+
+on:
+  push:
+    branches: [ main, dev, docker ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - 
+      uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+
+    - 
+      name: Build Dockerfile
+      timeout-minutes: 20
+      run: |
+            docker build -t binance_dumper_testing -f ./docker/Dockerfile .
+    - 
+      name: Install and Run Dive
+      timeout-minutes: 2
+      run: |
+            pushd /tmp
+            wget --no-verbose https://github.com/wagoodman/dive/releases/download/v0.10.0/dive_0.10.0_linux_amd64.deb
+            sudo apt install --quiet -y ./dive_0.10.0_linux_amd64.deb
+            popd
+            CI=true dive --ci-config "${{ github.workspace }}/.dive-ci" binance_dumper_testing
+
+    # https://github.com/docker/setup-qemu-action
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+    # https://github.com/docker/setup-buildx-action
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+
+    - name: Build dockerfile
+      if: success() && github.ref != 'refs/heads/main'
+      timeout-minutes: 360
+      run: |
+            set -x
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            docker buildx build \
+            --platform=linux/amd64,linux/arm/v7,linux/arm64/v8 \
+            --output "type=image,push=true" \
+            --file ./docker/Dockerfile . \
+            --tag ghcr.io/${{ github.repository_owner }}/binance_dumper/binance_dumper_testing:latest
+
+    - name: Build dockerfile
+      if: success() && github.ref == 'refs/heads/main'
+      timeout-minutes: 360
+      run: |
+            set -x
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker buildx build \
+            --platform=linux/amd64,linux/arm/v7,linux/arm64/v8 \
+            --output "type=image,push=true" \
+            --file ./docker/Dockerfile . \
+            --tag ghcr.io/${{ github.repository_owner }}/binance_dumper/binance_dumper:latest

@@ -1,0 +1,32 @@
+name: Docker image build
+
+on:
+  push:
+    branches: [ main, dev, docker ]
+  pull_request:
+    branches: [ main, dev, docker ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - 
+      uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+
+    - 
+      name: Build Dockerfile
+      timeout-minutes: 20
+      run: |
+            docker build -t binance_dumper_testing -f ./docker/Dockerfile .
+    - 
+      name: Install and Run Dive
+      timeout-minutes: 2
+      run: |
+            pushd /tmp
+            wget --no-verbose https://github.com/wagoodman/dive/releases/download/v0.10.0/dive_0.10.0_linux_amd64.deb
+            sudo apt install --quiet -y ./dive_0.10.0_linux_amd64.deb
+            popd
+            CI=true dive --ci-config "${{ github.workspace }}/.dive-ci" binance_dumper_testing

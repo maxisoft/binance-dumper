@@ -1,0 +1,25 @@
+name: Build Using VCC on Windows
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v1.0.2
+      with:
+        vs-version: '16.8'
+    - uses: ilammy/msvc-dev-cmd@v1
+    - uses: jiro4989/setup-nim-action@v1
+    - run: nimble install -y ws asynctools
+    - run: nim c --cc:vcc -r tests/all.nim
+    - run: nim c --cc:vcc -d:release -r tests/all.nim
+    - run: nim c --cc:vcc -d:release --stackTrace:on --opt:speed -d:ssl --app:console --filenames:canonical --gc:orc -o:binance_dumper ./src/main.nim
+    - run: nim cpp --cc:vcc -d:release --stackTrace:on --opt:speed -d:ssl --app:console --filenames:canonical --gc:orc -o:binance_dumper_cpp ./src/main.nim
+    - name: Create artifact
+      uses: actions/upload-artifact@v2
+      if: always()
+      with:
+        name: binance_dumper_vcc
+        path: binance_dumper*

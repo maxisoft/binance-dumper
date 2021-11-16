@@ -1,0 +1,23 @@
+# binance dumper systemd unit file
+
+## Installation
+```bash
+bash
+set -euo pipefail
+wget "https://github.com/maxisoft/binance-dumper/releases/download/v1.0.0/binance_dumper" -O "/tmp/binance_dumper"
+useradd -r -s /bin/false binancedumper
+install -d -m 0755 -o binancedumper -g binancedumper /opt/binancedumper
+install -d -m 0755 -o binancedumper -g binancedumper /var/binancedumper
+install -m 0554 -o binancedumper -g binancedumper /tmp/binance_dumper /opt/binancedumper/binance_dumper
+
+# optionally edit the binancedumper.service file
+cp binancedumper.service /etc/systemd/system/binancedumper.service
+systemctl daemon-reload
+systemctl start binancedumper
+# check running state with:
+# systemctl status binancedumper
+systemctl enable binancedumper
+
+# cleanup
+rm -f /tmp/binance_dumper
+```
