@@ -45,9 +45,6 @@ type
         tracker: PairTracker
         client: BinanceHttpClient
 
-    
-proc state(self: BaseJob): var State {.inline.} = result = self.stateLoader.get
-
 proc parsePeriod*(period: string): Duration =
     if len(period) < 2:
         raise Exception.newException("not a valid period")
@@ -101,12 +98,14 @@ method invoke(this: BaseJob) {.base async.} =
 method incrementDueTime(this: BaseJob) {.base.} =
     raise Exception.newException("must be implemented")
 
-method savedTimeStampTable(this: BaseBinanceHistorycalEntryJob): var Table[string, SavedTimestampState] {.base.} =
-    result = this.state.openInterestHist
-    raise Exception.newException("must be implemented")
-
 method listEntries(this: BaseBinanceHistorycalEntryJob, startTime: int64, limit: int): Future[seq[BaseBinanceHistorycalEntry]] {.base async.} =
     raise Exception.newException("must be implemented")
+
+method name(this: BaseBinanceHistorycalEntryJob): string {.base.} =
+    raise Exception.newException("must be implemented")
+
+proc getLastTimestamp(self: BaseBinanceHistorycalEntryJob): Future[int64] {.async.} =
+    result = await self.stateLoader.getLastTimestamp(pair=self.symbol, name=self.name(), period=self.period)
 
 method defaultStartTime(this: BaseBinanceHistorycalEntryJob): int64 {.base.} =
     return (now().utc.toTime - initDuration(days=29)).toUnix * 1000
@@ -129,8 +128,6 @@ proc computeEndTime(startTime: int64, limit: int, period: Duration): int64 =
         assert limit > 0
         result = startTime + period.inSeconds * 1000 * limit
 
-method savedTimeStampTable(this: OpenInterestHistJob): var Table[string, SavedTimestampState] = result = this.state.openInterestHist
-
 method listEntries(this: OpenInterestHistJob, startTime: int64, limit: int): Future[seq[BaseBinanceHistorycalEntry]] {.async.} =
     proc getter (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[OpenInterestHist]] {.async.} =
         let endTime = computeEndTime(startTime, limit, this.parsedPeriod)
@@ -138,8 +135,8 @@ method listEntries(this: OpenInterestHistJob, startTime: int64, limit: int): Fut
     
     result = await doListEntries(this, startTime = startTime, limit = limit, getter = getter)
 
-
-method savedTimeStampTable(this: TopTraderLongShortRatioAccountsJob): var Table[string, SavedTimestampState] = result = this.state.topLongShortAccountRatio
+method name(this: OpenInterestHistJob): string {.inline.} =
+    result = "openinterest"
 
 method listEntries(this: TopTraderLongShortRatioAccountsJob, startTime: int64, limit: int): Future[seq[BaseBinanceHistorycalEntry]] {.async.} =
     proc getter (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[TopTraderLongShortRatioAccounts]] {.async.} =
@@ -148,7 +145,8 @@ method listEntries(this: TopTraderLongShortRatioAccountsJob, startTime: int64, l
     
     result = await doListEntries(this, startTime = startTime, limit = limit, getter = getter)
 
-method savedTimeStampTable(this: TopTraderLongShortRatioPositionsJob): var Table[string, SavedTimestampState] = result = this.state.topLongShortPositionRatio
+method name(this: TopTraderLongShortRatioAccountsJob): string {.inline.} =
+    result = "topTraderLongShortRatioAccounts"
 
 method listEntries(this: TopTraderLongShortRatioPositionsJob, startTime: int64, limit: int): Future[seq[BaseBinanceHistorycalEntry]] {.async.} =
     proc getter (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[TopTraderLongShortRatioPositions]] {.async.} =
@@ -157,7 +155,8 @@ method listEntries(this: TopTraderLongShortRatioPositionsJob, startTime: int64, 
     
     result = await doListEntries(this, startTime = startTime, limit = limit, getter = getter)
 
-method savedTimeStampTable(this: LongShortRatioJob): var Table[string, SavedTimestampState] = result = this.state.globalLongShortAccountRatio
+method name(this: TopTraderLongShortRatioPositionsJob): string {.inline.} =
+    result = "topTraderLongShortRatioPositions"
 
 method listEntries(this: LongShortRatioJob, startTime: int64, limit: int): Future[seq[BaseBinanceHistorycalEntry]] {.async.} =
     proc getter (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[LongShortRatio]] {.async.} =
@@ -166,29 +165,30 @@ method listEntries(this: LongShortRatioJob, startTime: int64, limit: int): Futur
     
     result = await doListEntries(this, startTime = startTime, limit = limit, getter = getter)
 
+method name(this: LongShortRatioJob): string {.inline.} =
+    result = "longShortRatio"
+
 method invoke(this: BaseBinanceHistorycalEntryJob) {.async.} =
-    let key = fmt"{this.symbol}_{this.period}"
     var startTime = this.startTime
     if startTime == -1: # special case for 1st time
-        let stt = this.savedTimeStampTable
-        if key in stt and parseBiggestInt(stt[key].timestamp, startTime) != 0:
-            discard
-        else:
-            startTime = this.defaultStartTime
+        startTime = this.defaultStartTime
+        let stt = await this.getLastTimestamp()
+        if stt > 0:
+            startTime = max(stt, startTime)
+            
     let limit = this.defaultLimit
     let history = await this.listEntries(startTime = startTime, limit = limit)
     if len(history) > 0:
         var maxTime: int64 = 0
         var tmp: int64 = 0
         for item in history:
-            this.csvWritter.append(item.toCsv, item.date)
             if parseBiggestInt(item.timestamp, tmp) > 0:
                 maxTime = max(maxTime, tmp)
+                if tmp > startTime:
+                    this.csvWritter.append(item.toCsv, item.date)
         await this.csvWritter.processNow()
         var ts: SavedTimestampState
         ts.timestamp = $(maxTime)
-        this.savedTimeStampTable[key] = ts
-        this.state.incrementVersion()
         this.startTime = maxTime
         
         if limit > 2 and len(history) >= limit - 2:
@@ -245,7 +245,6 @@ const
 proc newJobScheduler*(loader: StateLoader): JobScheduler =
     result.new()
     result.queue = initHeapQueue[BaseJob]()
-    result.stateVersion = loader.get().version
     result.stateLoader = loader
     result.alock = newAsyncLock()
     result.maxTaskCount = SCHEDULER_MAX_CONCURRENT_TASK
@@ -264,18 +263,6 @@ proc process(self: JobScheduler, item: BaseJob) {.async.} =
             item.incrementDueTime()
     finally:
         self.queue.push(item)
-    
-    if item.state.compareVersion(self.stateVersion) > 0:
-        await self.alock.acquire()
-        try:
-            if item.state.compareVersion(self.stateVersion) > 0:
-                if await withTimeout(self.stateLoader.save(), 30_000):
-                    # timeout is required to prevent holding lock all time
-                    self.stateVersion = item.state.version
-                else:
-                    raise TimeoutError.newException("unable to save state. Most likely a IO error")
-        finally:
-            self.alock.release()
     
 proc loop*(self: JobScheduler, token: CancellationToken) {.async.} =
     while len(self.queue) > 0 and not token.cancelled:

@@ -43,15 +43,6 @@ proc main() =
     let pairTrackerInstance = loadPairTracker()
     let stateLoader = newStateLoader("state.json")
     let pool = HttpPool()
-    var st: State = stateLoader.get()
-    try:
-        waitFor stateLoader.load()
-    except OSError:
-        discard
-    defer:
-        stateLoader.close()
-    st = stateLoader.get
-    st.incrementVersion()
     let freshPairTracker = waitFor createFreshPairTracker(stateLoader, pool)
     let sched = newJobScheduler(stateLoader)
     if existsEnv("SCHEDULER_CONCURRENT_TASK"):
@@ -61,7 +52,7 @@ proc main() =
             raise Exception.newException(fmt"invalid SCHEDULER_CONCURRENT_TASK = {v}")
         sched.maxTasks = maxTasks
     
-    var pairs = newSeqOfCap[string](len(st.openInterestHist))
+    var pairs = newSeq[string]()
     for p in freshPairTracker.listPair():
         pairs.add(p)
     let periods = ["5m", "1h", "1d"]
@@ -97,7 +88,6 @@ proc main() =
 
     sched.add(newUpdatePairTrackerJob(stateLoader, pairTrackerInstance, client, getMonoTime()))
 
-    asyncCheck stateLoader.save()
     if len(getEnv("BTC_WEBSOCKET", "")) > 0:
         # BTC_WEBSOCKET => write down btc depth and markprice
         # Generate large files overtime
