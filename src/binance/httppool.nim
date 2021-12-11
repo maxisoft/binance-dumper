@@ -27,6 +27,13 @@ type
         pool: DoublyLinkedList[PoolEntry]
         awaiters: Deque[Future[void]]
 
+    ConnectLimitError* = object of CatchableError
+
+proc newHttpPool*(): HttpPool =
+    result.new()
+    result.awaiters = initDeque[Future[void]]()
+    result.pool = initDoublyLinkedList[PoolEntry]()
+
 proc createAsyncHttpClient(): AsyncHttpClient =
     let ua = getEnv("USER_AGENT", USER_AGENT)
     result = newAsyncHttpClient(userAgent=ua)
@@ -54,7 +61,7 @@ proc rent*(self: HttpPool, useCount = 1, throwOnConnectLimit=false): AsyncHttpCl
 
     if freshlyCreatedCounter >= FRESHLY_CREATED_LIMIT_PER_MINUTE or c >= MAX_POOL_CONNECTION:
         if throwOnConnectLimit:
-            raise Exception.newException("throwOnConnectLimit")
+            raise ConnectLimitError.newException("throwOnConnectLimit")
         assert not self.pool.head.isNil
         var best = self.pool.tail
         for n in nodes(self.pool):
@@ -71,13 +78,10 @@ proc rentAsync*(self: HttpPool): Future[AsyncHttpClient] {.async.}=
     while true:
         try:
             return self.rent(1, throwOnConnectLimit = true)
-        except:
-            if getCurrentExceptionMsg() == "throwOnConnectLimit":
-                var w = newFuture[void]("HttpPool.rentAsync")
-                self.awaiters.addLast(w)
-                yield w
-            else:
-                raise
+        except ConnectLimitError:
+            var w = newFuture[void]("HttpPool.rentAsync")
+            self.awaiters.addLast(w)
+            yield w
 
 proc notify(self: HttpPool) =
     if len(self.awaiters) == 0:

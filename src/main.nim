@@ -42,7 +42,7 @@ proc main() =
         cancellationToken.cancel(throws = false)
     let pairTrackerInstance = loadPairTracker()
     let stateLoader = newStateLoader("state.json")
-    let pool = HttpPool()
+    let pool = newHttpPool()
     let freshPairTracker = waitFor createFreshPairTracker(stateLoader, pool)
     let sched = newJobScheduler(stateLoader)
     if existsEnv("SCHEDULER_CONCURRENT_TASK"):
