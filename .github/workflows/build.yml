@@ -14,7 +14,7 @@ jobs:
     - run: nimble install -y ws asynctools sorta
     - run: nim c -r tests/all.nim
     - run: nim c -d:release -r tests/all.nim
-    - run: nim c -d:release --stackTrace:on --opt:speed -d:ssl --app:console --filenames:canonical --gc:orc -o:binance_dumper ./src/main.nim
+    - run: nim c -d:release --stackTrace:on --opt:speed -d:ssl --app:console --filenames:canonical -o:binance_dumper ./src/main.nim
     - name: Create artifact
       uses: actions/upload-artifact@v2
       if: always()
