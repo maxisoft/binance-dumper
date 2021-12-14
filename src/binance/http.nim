@@ -40,7 +40,7 @@ proc rateLimiter*(): var BinanceRateLimiter =
 const 
     BASE_URL = "https://fapi.binance.com"
     RATE_LIMITER_DEFAULT_LIMIT = 600 # 2400 last time checked
-    RATE_LIMITER_LIMIT_SECURITY_FACTOR = 0.9 # for now we limit the request/second even more (avoiding bans)
+    RATE_LIMITER_LIMIT_SECURITY_FACTOR = 0.9 # limit the request/second even more (avoiding bans)
     RATE_LIMITER_SLEEP_TICK = 50 # ms
     oneMinute = initDuration(minutes = 1)
 

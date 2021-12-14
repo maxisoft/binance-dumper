@@ -10,14 +10,14 @@ import std/lists
 import ./cancellationtoken
 
 const 
-    USER_AGENT = "nim/1.0"
+    DEFAULT_USER_AGENT = "binance_dumper/1.0"
     MAX_POOL_CONNECTION = 20
     FRESHLY_CREATED_LIMIT_PER_MINUTE = 20
     oneMinute = initDuration(minutes = 1)
     oneHour = initDuration(hours = 1)
 
 type 
-    PoolEntry = object
+    PoolEntry = ref object
         client: AsyncHttpClient
         useCounter: int64
         creationDate: MonoTime
@@ -35,7 +35,7 @@ proc newHttpPool*(): HttpPool =
     result.pool = initDoublyLinkedList[PoolEntry]()
 
 proc createAsyncHttpClient(): AsyncHttpClient =
-    let ua = getEnv("USER_AGENT", USER_AGENT)
+    let ua = getEnv("USER_AGENT", DEFAULT_USER_AGENT)
     result = newAsyncHttpClient(userAgent=ua)
 
 iterator clients*(self: HttpPool): var AsyncHttpClient =
@@ -46,16 +46,21 @@ iterator entries*(self: HttpPool): var PoolEntry =
     for item in mitems(self.pool):
         yield item
 
-proc rent*(self: HttpPool, useCount = 1, throwOnConnectLimit=false): AsyncHttpClient =
+proc rent*(self: HttpPool, useCount = 1, throwOnConnectLimit=true): var AsyncHttpClient =
     var freshlyCreatedCounter = 0
     let now = getMonoTime()
     var c: int64 = 0
-    for e in entries(self):
-        if abs(now - e.creationDate) < oneHour and e.useCounter == 0:
-            inc e.useCounter, useCount
-            e.lastUseDate = getMonoTime()
-            return e.client
-        if abs(now - e.creationDate) < oneMinute:
+    for n in nodes(self.pool):
+        if abs(now - n.value.creationDate) < oneHour and n.value.useCounter == 0:
+            inc n.value.useCounter, useCount
+            n.value.lastUseDate = now
+            # move current node to the end of the list
+            # in order to mimic a priority queue
+            let cpy = n.value
+            self.pool.remove(n)
+            self.pool.add(cpy)
+            return self.pool.tail.value.client
+        if abs(now - n.value.creationDate) < oneMinute:
             inc freshlyCreatedCounter
         inc c
 
@@ -68,7 +73,10 @@ proc rent*(self: HttpPool, useCount = 1, throwOnConnectLimit=false): AsyncHttpCl
             if n.value.useCounter < best.value.useCounter and abs(now - n.value.creationDate) < oneHour:
                 best = n
         inc best.value.useCounter, useCount
-        return best.value.client
+        let cpy = best.value
+        self.pool.remove(best)
+        self.pool.add(cpy)
+        return self.pool.tail.value.client
     
     self.pool.add(PoolEntry(client: createAsyncHttpClient(), creationDate: now, lastUseDate: now))
     inc self.pool.tail.value.useCounter, useCount
@@ -121,9 +129,13 @@ proc `return`*(self: HttpPool, client: AsyncHttpClient, useCount = 1) =
             if shouldClose(n):
                 client.close()
                 self.pool.remove(n)
+            elif n.value.useCounter == 0:
+                let cpy = n.value
+                self.pool.remove(n)
+                self.pool.prepend(cpy)
             notify(self)
             return
-    raise Exception.newException("Trying to return a not managed client")
+    raise Exception.newException("Trying to return an unmanaged client")
 
 proc cleanup*(self: HttpPool) =
     var stable = false
