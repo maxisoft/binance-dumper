@@ -4,7 +4,7 @@ RUN mkdir -p '/usr/src/binancedumper'
 COPY ./src/ /usr/src/binancedumper
 WORKDIR /usr/src/binancedumper
 RUN nimble install -y ws asynctools sorta
-RUN nim c -d:release --stackTrace:on --opt:speed -d:ssl --app:console --filenames:canonical --gc:orc -o:/bin/binance_dumper "/usr/src/binancedumper/main.nim"
+RUN nim c -d:release --stackTrace:on --opt:speed -d:ssl --app:console --filenames:canonical -o:/bin/binance_dumper "/usr/src/binancedumper/main.nim"
 
 
 FROM alpine

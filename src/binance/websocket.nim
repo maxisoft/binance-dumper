@@ -45,5 +45,5 @@ proc loop*(self: FutureBinanceWebSocket, cancellationToken: CancellationToken) {
             await sleepAsync(50)
 
     if self.ws != nil:
-        self.ws.close()
+        self.ws.hangup()
 
