@@ -78,8 +78,6 @@ proc waitForLimit*(self: BinanceRateLimiter, limit = -1, timeout = -1) {.async.}
             await sleepAsync(RATE_LIMITER_SLEEP_TICK)
 
 proc getJson(self: BinanceHttpClient, url: string, retry = 5, weight = 1, rawIntegers = false, rawFloats = false, timeout = 30_000): Future[JsonNode] {.async.} =
-    var client: AsyncHttpClient = nil
-
     proc `do`(): Future[JsonNode] {.async.} =
 
         template exHandler(closeClient: auto) =
@@ -93,7 +91,7 @@ proc getJson(self: BinanceHttpClient, url: string, retry = 5, weight = 1, rawInt
             await rl.waitForLimit()
             # TODO here we need a async lock or semaphore reserving the weight
             # until the below async request is done
-            client = await self.pool.rentAsync()
+            var client = await self.pool.rentAsync()
             try:
                 assert weight >= 0
                 rl.weight += weight
@@ -121,9 +119,11 @@ proc getJson(self: BinanceHttpClient, url: string, retry = 5, weight = 1, rawInt
                 except ProtocolError:
                     exHandler(true)
                 except TimeoutError:
+                    exHandler(false)
+                except OSError:
                     exHandler(true)
                 except:
-                    exHandler(i >= 2)
+                    exHandler(false)
                     await sleepAsync(50)
             finally:
                 if client != nil:
@@ -134,9 +134,6 @@ proc getJson(self: BinanceHttpClient, url: string, retry = 5, weight = 1, rawInt
     if await withTimeout(f, timeout):
         return f.read()
     else:
-        if client != nil:
-            client.close()
-            self.pool.`return`(client)
         raise TimeoutError.newException(fmt"unable to process request in {initDuration(milliseconds = timeout)}")
     raise Exception.newException(fmt"Unable to get a valid response in {retry} tries")
 

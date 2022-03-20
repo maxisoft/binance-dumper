@@ -35,6 +35,7 @@ type
         period : string
         startTime: int64
         parsedPeriod: Duration
+        startTimeError: uint64
 
     OpenInterestHistJob* = ref object of BaseBinanceHistorycalEntryJob
     TopTraderLongShortRatioAccountsJob* = ref object of BaseBinanceHistorycalEntryJob
@@ -171,13 +172,39 @@ method name(this: LongShortRatioJob): string {.inline.} =
 method invoke(this: BaseBinanceHistorycalEntryJob) {.async.} =
     var startTime = this.startTime
     if startTime == -1: # special case for 1st time
-        startTime = this.defaultStartTime
+        startTime = this.defaultStartTime()
         let stt = await this.getLastTimestamp()
         if stt > 0:
             startTime = max(stt, startTime)
             
     let limit = this.defaultLimit
-    let history = await this.listEntries(startTime = startTime, limit = limit)
+    var history: seq[BaseBinanceHistorycalEntry]
+    try:
+        history = await this.listEntries(startTime = startTime, limit = limit)
+    except HttpRequestError:
+        proc is400Error(): bool {.inline.} =
+            var msg = getCurrentExceptionMsg()
+            if len(msg) == 0:
+                return false
+            return msg.startsWith("400")
+        
+        if is400Error():
+            # most of the time a 400 error is about the startTime parameter
+            # try to increment startTime
+            for i in 0..30:
+                # TODO binary search that
+                startTime = max(this.defaultStartTime() + initDuration(days=i).inMilliseconds, startTime)
+                try:
+                    history = await this.listEntries(startTime = startTime, limit = limit)
+                    break
+                except HttpRequestError:
+                    if is400Error():
+                        inc this.startTimeError
+                    else:
+                        raise
+        else:
+            raise
+       
     if len(history) > 0:
         var maxTime: int64 = 0
         var tmp: int64 = 0
