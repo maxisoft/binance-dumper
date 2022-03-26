@@ -22,7 +22,7 @@ proc connect*(self: FutureBinanceWebSocket) {.async.} =
     if self.ws == nil or self.ws.readyState != ReadyState.Open:
         self.ws = await newWebSocket(self.url)
         self.ping_time = getMonoTime()
-        self.connect_counter += 1
+        inc self.connect_counter
 
 proc loop*(self: FutureBinanceWebSocket, cancellationToken: CancellationToken) {.async.} =
     while not cancellationToken.cancelled:
@@ -40,7 +40,7 @@ proc loop*(self: FutureBinanceWebSocket, cancellationToken: CancellationToken) {
                 break
         else:
             echo data
-        self.message_counter += 1
+        inc self.message_counter
         if getMonoTime() - t < initDuration(milliseconds = 50) and not cancellationToken.cancelled:
             await sleepAsync(50)
 

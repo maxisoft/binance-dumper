@@ -221,3 +221,6 @@ proc topTraderLongShortRatioPositions*(self: BinanceHttpClient, symbol: string, 
     
 proc longShortRatio*(self: BinanceHttpClient, symbol: string, period = "5m", limit = -1, startTime: int64 = -1, endTime: int64 = -1): Future[seq[LongShortRatio]] {.async.} =
     result = await historicalEntries(LongShortRatio, "/futures/data/globalLongShortAccountRatio")
+
+proc takerBuySellVolume*(self: BinanceHttpClient, symbol: string, period = "5m", limit = -1, startTime: int64 = -1, endTime: int64 = -1): Future[seq[TakerBuySellVolumeHist]] {.async.} =
+    result = await historicalEntries(TakerBuySellVolumeHist, "futures/data/takerlongshortRatio")

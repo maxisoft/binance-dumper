@@ -119,5 +119,8 @@ proc loop*(self: CsvWritter, token: CancellationToken) {.async.} =
         await drainProcessingQueue(self)
         await sleepAsync(1000)
 
-func identifier*(self: var CsvWritter): string {.inline.} =
+func identifier*(self: CsvWritter): string {.inline.} =
     return self.identifier
+
+func `identifier=`*(self: var CsvWritter, value: string) =
+    self.identifier = value
