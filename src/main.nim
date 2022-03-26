@@ -60,31 +60,42 @@ proc main() =
     for i, pair in enumerate(pairs):
         if not dirExists(pair):
             createDir(pair)
-        if not dirExists(pair / "openinterest"):
-            createDir(pair / "openinterest")
-        if not dirExists(pair / "topTraderLongShortRatioAccounts"):
-            createDir(pair / "topTraderLongShortRatioAccounts")
-        if not dirExists(pair / "topTraderLongShortRatioPositions"):
-            createDir(pair / "topTraderLongShortRatioPositions")
-        if not dirExists(pair / "longShortRatio"):
-            createDir(pair / "longShortRatio")
+        if not dirExists(pair / openinterestName):
+            createDir(pair / openinterestName)
+        if not dirExists(pair / topTraderLongShortRatioAccountsName):
+            createDir(pair / topTraderLongShortRatioAccountsName)
+        if not dirExists(pair / topTraderLongShortRatioPositionsName):
+            createDir(pair / topTraderLongShortRatioPositionsName)
+        if not dirExists(pair / longShortRatioName):
+            createDir(pair / longShortRatioName)
+        if not dirExists(pair / takerBuySellRatioName):
+            createDir(pair / takerBuySellRatioName)
         for period in periods:
             block:
-                let csvOI = newCsvWritter($pair / "openinterest" / $period, timeUnit=CsvTimeUnit.monthly)
+                var csvOI = newCsvWritter($pair / openinterestName / $period, timeUnit=CsvTimeUnit.monthly)
                 let jobOi = newOpenInterestHistJob(symbol = pair, period = period, startTime = -1, stateLoader = stateLoader, csvWritter = csvOI, client = client, dueTime = startMonoTime)
+                csvOI.identifier = $pair / jobOi.name() / $period
                 sched.add(jobOi)
             block:
-                let csvtLSAR = newCsvWritter($pair / "topTraderLongShortRatioAccounts" / $period, timeUnit=CsvTimeUnit.monthly)
+                var csvtLSAR = newCsvWritter($pair / topTraderLongShortRatioAccountsName / $period, timeUnit=CsvTimeUnit.monthly)
                 let jobLSAR = newTopTraderLongShortRatioAccountsJob(symbol = pair, period = period, startTime = -1, stateLoader = stateLoader, csvWritter = csvtLSAR, client = client, dueTime = startMonoTime)
+                csvtLSAR.identifier = $pair / jobLSAR.name() / $period
                 sched.add(jobLSAR)
             block:
-                let csvtLSPR = newCsvWritter($pair / "topTraderLongShortRatioPositions" / $period, timeUnit=CsvTimeUnit.monthly)
+                var csvtLSPR = newCsvWritter($pair / topTraderLongShortRatioPositionsName / $period, timeUnit=CsvTimeUnit.monthly)
                 let jobLSPR = newTopTraderLongShortRatioPositionsJob(symbol = pair, period = period, startTime = -1, stateLoader = stateLoader, csvWritter = csvtLSPR, client = client, dueTime = startMonoTime)
+                csvtLSPR.identifier = $pair / jobLSPR.name() / $period
                 sched.add(jobLSPR)
             block:
-                let csvLSR = newCsvWritter($pair / "longShortRatio" / $period, timeUnit=CsvTimeUnit.monthly)
+                var csvLSR = newCsvWritter($pair / longShortRatioName / $period, timeUnit=CsvTimeUnit.monthly)
                 let jobLSR = newLongShortRatioJob(symbol = pair, period = period, startTime = -1, stateLoader = stateLoader, csvWritter = csvLSR, client = client, dueTime = startMonoTime)
+                csvLSR.identifier = $pair / jobLSR.name() / $period
                 sched.add(jobLSR)
+            block:
+                var csTBSV = newCsvWritter($pair / takerBuySellRatioName / $period, timeUnit=CsvTimeUnit.monthly)
+                let jobTBSV = newTakerBuySellVolumeJob(symbol = pair, period = period, startTime = -1, stateLoader = stateLoader, csvWritter = csTBSV, client = client, dueTime = startMonoTime)
+                csTBSV.identifier = $pair / jobTBSV.name() / $period
+                sched.add(jobTBSV)
 
     sched.add(newUpdatePairTrackerJob(stateLoader, pairTrackerInstance, client, getMonoTime()))
 

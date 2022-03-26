@@ -23,6 +23,11 @@ type
     TopTraderLongShortRatioPositions* = ref object of BaseLongShortRatio
     LongShortRatio* = ref object of BaseLongShortRatio
 
+    TakerBuySellVolumeHist* = ref object of BaseBinanceHistorycalEntry
+        buySellRatio*: string
+        buyVol*: string
+        sellVol*: string
+
 proc getNodeStr(node: JsonNode): string {.inline.} =
     if node.kind == JString:
         return node.getStr()
@@ -161,3 +166,16 @@ method toCsv*(this: BaseLongShortRatio, includeSymbol = false): string =
     result.add(this.longAccount)
     result.add(',')
     result.add(this.shortAccount)
+
+
+method toCsv*(this: TakerBuySellVolumeHist, includeSymbol = false): string =
+    result.add(this.timestamp)
+    if includeSymbol:
+        result.add(',')
+        result.add(this.symbol)
+    result.add(',')
+    result.add(this.buySellRatio)
+    result.add(',')
+    result.add(this.buyVol)
+    result.add(',')
+    result.add(this.sellVol)
