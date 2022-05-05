@@ -11,10 +11,13 @@ import ./cancellationtoken
 
 const 
     DEFAULT_USER_AGENT = "binance_dumper/1.0"
-    MAX_POOL_CONNECTION = 20
+    MAX_POOL_CONNECTIONS = 20
     FRESHLY_CREATED_LIMIT_PER_MINUTE = 20
     oneMinute = initDuration(minutes = 1)
     oneHour = initDuration(hours = 1)
+    
+    EXPECTED_CONNECTION_LIFESPAN = oneHour
+    REMOVE_AFTER_NO_USE_TIME = 10 * oneMinute
 
 type 
     PoolEntry = ref object
@@ -26,6 +29,7 @@ type
     HttpPool* = ref object
         pool: DoublyLinkedList[PoolEntry]
         awaiters: Deque[Future[void]]
+        max_connections*: uint
 
     ConnectLimitError* = object of CatchableError
 
@@ -33,6 +37,7 @@ proc newHttpPool*(): HttpPool =
     result.new()
     result.awaiters = initDeque[Future[void]]()
     result.pool = initDoublyLinkedList[PoolEntry]()
+    result.max_connections = MAX_POOL_CONNECTIONS
 
 proc createAsyncHttpClient(): AsyncHttpClient =
     let ua = getEnv("USER_AGENT", DEFAULT_USER_AGENT)
@@ -49,28 +54,23 @@ iterator entries*(self: HttpPool): var PoolEntry =
 proc rent*(self: HttpPool, useCount = 1, throwOnConnectLimit=true): var AsyncHttpClient =
     var freshlyCreatedCounter = 0
     let now = getMonoTime()
-    var c: int64 = 0
+    var c: uint64 = 0
     for n in nodes(self.pool):
-        if abs(now - n.value.creationDate) < oneHour and n.value.useCounter == 0:
+        if n.value.useCounter == 0:
             inc n.value.useCounter, useCount
             n.value.lastUseDate = now
-            # move current node to the end of the list
-            # in order to mimic a priority queue
-            let cpy = n.value
-            self.pool.remove(n)
-            self.pool.add(cpy)
             return self.pool.tail.value.client
         if abs(now - n.value.creationDate) < oneMinute:
             inc freshlyCreatedCounter
         inc c
 
-    if freshlyCreatedCounter >= FRESHLY_CREATED_LIMIT_PER_MINUTE or c >= MAX_POOL_CONNECTION:
+    if freshlyCreatedCounter >= FRESHLY_CREATED_LIMIT_PER_MINUTE or c >= self.max_connections:
         if throwOnConnectLimit:
             raise ConnectLimitError.newException("throwOnConnectLimit")
         assert not self.pool.head.isNil
         var best = self.pool.tail
         for n in nodes(self.pool):
-            if n.value.useCounter < best.value.useCounter and abs(now - n.value.creationDate) < oneHour:
+            if n.value.useCounter < best.value.useCounter and abs(now - n.value.creationDate) < EXPECTED_CONNECTION_LIFESPAN:
                 best = n
         inc best.value.useCounter, useCount
         let cpy = best.value
@@ -113,20 +113,38 @@ proc isClosed(self: AsyncHttpClient, nilCountsTrue = false): bool =
     if s.isNil: return nilCountsTrue
     result = s.isClosed
 
-proc shouldClose(n: DoublyLinkedNode[PoolEntry]): bool {.inline.} =
+proc shouldClose(self: HttpPool, n: DoublyLinkedNode[PoolEntry], index = -1): bool {.inline.} =
+    if n.isNil or n.value.isNil:
+        return true
     result = false
     let now = getMonoTime()
-    if n.value.useCounter <= 0 and n.value.client.isClosed() and abs(now - n.value.creationDate) > oneMinute:
+    if n.value.useCounter <= 0:
+        if abs(now - n.value.creationDate) > EXPECTED_CONNECTION_LIFESPAN:
+            return true
+        if abs(now - n.value.creationDate) > oneMinute and n.value.client.isClosed(nilCountsTrue=true):
+            return true
+        if abs(now - n.value.lastUseDate) > REMOVE_AFTER_NO_USE_TIME:
+            return true
+        if index > 0 and index.uint >= self.max_connections and abs(now - n.value.lastUseDate) > oneMinute:
+            return true
+
+proc mustClose(n: DoublyLinkedNode[PoolEntry]): bool {.inline.} =
+    if n.isNil or n.value.isNil:
         return true
-    if abs(now - n.value.lastUseDate) > 2 * oneHour: # no connections should last 2hr
+    result = false
+    let now = getMonoTime()
+    if n.value.client.isClosed(nilCountsTrue=false):
+        return true
+    if abs(now - n.value.creationDate) > 2 * EXPECTED_CONNECTION_LIFESPAN: # ie no connections should last 2hr
         return true
 
 proc `return`*(self: HttpPool, client: AsyncHttpClient, useCount = 1) =
+    var i = 0
     for n in nodes(self.pool):
-        if cast[pointer](n.value.client) == cast[pointer](client):
+        if n.value != nil and cast[pointer](n.value.client) == cast[pointer](client):
             dec n.value.useCounter, useCount
             n.value.useCounter = max(n.value.useCounter, 0)
-            if shouldClose(n):
+            if mustClose(n) or self.shouldClose(n, i):
                 client.close()
                 self.pool.remove(n)
             elif n.value.useCounter == 0:
@@ -135,14 +153,16 @@ proc `return`*(self: HttpPool, client: AsyncHttpClient, useCount = 1) =
                 self.pool.prepend(cpy)
             notify(self)
             return
+        inc i
     raise Exception.newException("Trying to return an unmanaged client")
 
 proc cleanup*(self: HttpPool) =
     var stable = false
     while not stable:
         stable = true
+        var i = 0
         for n in nodes(self.pool):
-            if shouldClose(n):
+            if mustClose(n) or self.shouldClose(n, i):
                 let client = n.value.client
                 if client.isNil:
                     continue
@@ -151,6 +171,10 @@ proc cleanup*(self: HttpPool) =
                 stable = false
                 notify(self)
                 break
+        inc i
+    
+    if not self.pool.head.isNil and len(self.awaiters) == 0:
+        self.awaiters = initDeque[Future[void]]()
 
 proc loop*(self: HttpPool, token: CancellationToken, sleepTime = 60_000) {.async.} =
     while not token.cancelled:
