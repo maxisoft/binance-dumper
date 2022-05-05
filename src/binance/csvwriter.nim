@@ -14,6 +14,7 @@ type
     CsvWritter* = ref object
         identifier: string
         processingQueue: Deque[(string, Time)]
+        processingQueueCapacity: uint64
         processingThreshold*: int
         timeUnit: CsvTimeUnit
 
@@ -22,6 +23,7 @@ proc newCsvWritter*(identifer: string, timeUnit: CsvTimeUnit = CsvTimeUnit.hourl
     result.new()
     result.identifier = identifer
     result.processingQueue = initDeque[(string, Time)]()
+    result.processingQueueCapacity = 0
     result.processingThreshold = processingThreshold
     result.timeUnit = timeUnit
 
@@ -29,6 +31,8 @@ const
     hourly_format = "yyyy-MM-dd'_'HH" 
     daily_format = "yyyy-MM-dd"
     monthly_format = "yyyy-MM"
+
+    shrink_threshold = 4
 
 proc timeFormat*(self: CsvWritter): string {.inline.} = 
     return (case self.timeUnit
@@ -39,6 +43,14 @@ proc timeFormat*(self: CsvWritter): string {.inline.} =
 
 proc append*(self: CsvWritter, value: string, date: Time) {.inline.} = 
     self.processingQueue.addLast((value, date))
+    self.processingQueueCapacity = max(self.processingQueueCapacity, len(self.processingQueue).uint64)
+
+proc shrink*(self: CsvWritter, force = false) =
+    if not force and len(self.processingQueue) > 0:
+        raise Exception.newException("trying to shrink csv writter with pending elements")
+    self.processingQueue = initDeque[(string, Time)]()
+    self.processingQueueCapacity = 0
+
 
 proc append*(self: CsvWritter, value: string, date: DateTime) {.inline.} = append(self, value, date.toTime)
 
@@ -109,6 +121,9 @@ proc drainProcessingQueue(self: CsvWritter, threshold: int) {.async.} =
                     raise
         finally:
             file.close()
+    
+    if len(self.processingQueue) == 0 and self.processingQueueCapacity > shrink_threshold:
+        self.shrink()
 
 proc drainProcessingQueue(self: CsvWritter) {.async.} = await drainProcessingQueue(self, self.processingThreshold)
 
