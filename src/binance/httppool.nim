@@ -56,27 +56,25 @@ proc rent*(self: HttpPool, useCount = 1, throwOnConnectLimit=true): var AsyncHtt
     let now = getMonoTime()
     var c: uint64 = 0
     for n in nodes(self.pool):
+        if n.value.isNil:
+            continue
         if n.value.useCounter == 0:
             inc n.value.useCounter, useCount
             n.value.lastUseDate = now
-            return self.pool.tail.value.client
+            return n.value.client
         if abs(now - n.value.creationDate) < oneMinute:
             inc freshlyCreatedCounter
         inc c
 
-    if freshlyCreatedCounter >= FRESHLY_CREATED_LIMIT_PER_MINUTE or c >= self.max_connections:
+    if self.pool.head != nil and (freshlyCreatedCounter >= FRESHLY_CREATED_LIMIT_PER_MINUTE or c >= self.max_connections):
         if throwOnConnectLimit:
             raise ConnectLimitError.newException("throwOnConnectLimit")
-        assert not self.pool.head.isNil
         var best = self.pool.tail
         for n in nodes(self.pool):
-            if n.value.useCounter < best.value.useCounter and abs(now - n.value.creationDate) < EXPECTED_CONNECTION_LIFESPAN:
+            if n.value != nil and n.value.useCounter < best.value.useCounter and abs(now - n.value.creationDate) < EXPECTED_CONNECTION_LIFESPAN:
                 best = n
         inc best.value.useCounter, useCount
-        let cpy = best.value
-        self.pool.remove(best)
-        self.pool.add(cpy)
-        return self.pool.tail.value.client
+        return best.value.client
     
     self.pool.add(PoolEntry(client: createAsyncHttpClient(), creationDate: now, lastUseDate: now))
     inc self.pool.tail.value.useCounter, useCount
