@@ -51,6 +51,15 @@ proc main() =
         if parseBiggestInt(v, maxTasks) == 0:
             raise Exception.newException(fmt"invalid SCHEDULER_CONCURRENT_TASK = {v}")
         sched.maxTasks = maxTasks
+        if maxTasks > 0:
+            pool.max_connections = min(pool.max_connections, maxTasks.uint)
+
+    if existsEnv("BINANCE_HTTP_POOL_CONNECTION"):
+        var max_connections = 0
+        let v = getEnv("BINANCE_HTTP_POOL_CONNECTION")
+        if parseInt(v, max_connections) == 0 or max_connections <= 0:
+            raise Exception.newException(fmt"invalid BINANCE_HTTP_POOL_CONNECTION = {v}")
+        pool.max_connections = max_connections.uint
     
     var pairs = newSeq[string]()
     for p in freshPairTracker.listPair():

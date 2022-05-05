@@ -10,7 +10,7 @@ RestartSec=5
 LimitNOFILE=1024
 WorkingDirectory=/var/binancedumper
 User=binancedumper
-# lower the value bellow for patatoes PC
+## lower the environment value bellow for patatoes PC (less cpu+ram usage)
 Environment="SCHEDULER_CONCURRENT_TASK=10"
 
 # Hardening
