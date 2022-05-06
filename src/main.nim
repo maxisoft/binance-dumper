@@ -45,11 +45,11 @@ proc main() =
     let pool = newHttpPool()
     let freshPairTracker = waitFor createFreshPairTracker(stateLoader, pool)
     let sched = newJobScheduler(stateLoader)
-    if existsEnv("SCHEDULER_CONCURRENT_TASK"):
+    if existsEnv("BINANCE_SCHEDULER_CONCURRENT_TASK"):
         var maxTasks: int64
-        let v = getEnv("SCHEDULER_CONCURRENT_TASK")
+        let v = getEnv("BINANCE_SCHEDULER_CONCURRENT_TASK")
         if parseBiggestInt(v, maxTasks) == 0:
-            raise Exception.newException(fmt"invalid SCHEDULER_CONCURRENT_TASK = {v}")
+            raise Exception.newException(fmt"invalid BINANCE_SCHEDULER_CONCURRENT_TASK = {v}")
         sched.maxTasks = maxTasks
         if maxTasks > 0:
             pool.max_connections = min(pool.max_connections, maxTasks.uint)
