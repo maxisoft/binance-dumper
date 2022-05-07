@@ -3,7 +3,7 @@ Save binance futures's *long short ratios*, *open interst*, *buy sell ratio* of 
 
 ## Description
 This project save multiples multiple binance futures data sources into [csv](https://en.wikipedia.org/wiki/Comma-separated_values) files.  
-The program target data source with no permanent retention on binance side. 
+The program target data source with no permanent retention on binance side.  
 Such csv may allow one to develop investment strategies, charts, analysis, ... without relying on external services (ie just from your own and raw data from the cex).
 
 ## Data sources
@@ -13,6 +13,9 @@ Currently all those data from the usdt pairs are collected from the api:
 - [topLongShortPositionRatio](https://binance-docs.github.io/apidocs/futures/en/#top-trader-long-short-ratio-positions=)
 - [globalLongShortAccountRatio](https://binance-docs.github.io/apidocs/futures/en/#long-short-ratio=)
 - [takerlongshortRatio](https://binance-docs.github.io/apidocs/futures/en/#taker-buy-sell-volume=)
+- [openInterestHist](https://binance-docs.github.io/apidocs/futures/en/#taker-buy-sell-volume=)
+
+The resulting csv files use the same columns (but the pair column) as specified by the api docs.  
 
 ## Requirement
 A standard working nim environment with
