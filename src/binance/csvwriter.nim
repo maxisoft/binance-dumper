@@ -7,7 +7,7 @@ import std/deques
 import std/asyncfile
 import ./cancellationtoken
 
-type 
+type
     CsvTimeUnit* = enum
         hourly, daily, monthly
 
@@ -18,7 +18,8 @@ type
         processingThreshold*: int
         timeUnit: CsvTimeUnit
 
-proc newCsvWritter*(identifer: string, timeUnit: CsvTimeUnit = CsvTimeUnit.hourly, processingThreshold = 600): CsvWritter =
+proc newCsvWritter*(identifer: string, timeUnit: CsvTimeUnit = CsvTimeUnit.hourly,
+        processingThreshold = 600): CsvWritter =
     assert processingThreshold > 0
     result.new()
     result.identifier = identifer
@@ -27,21 +28,21 @@ proc newCsvWritter*(identifer: string, timeUnit: CsvTimeUnit = CsvTimeUnit.hourl
     result.processingThreshold = processingThreshold
     result.timeUnit = timeUnit
 
-const 
-    hourly_format = "yyyy-MM-dd'_'HH" 
+const
+    hourly_format = "yyyy-MM-dd'_'HH"
     daily_format = "yyyy-MM-dd"
     monthly_format = "yyyy-MM"
 
     shrink_threshold = 4
 
-proc timeFormat*(self: CsvWritter): string {.inline.} = 
+proc timeFormat*(self: CsvWritter): string {.inline.} =
     return (case self.timeUnit
         of CsvTimeUnit.hourly: hourly_format
         of CsvTimeUnit.daily: daily_format
         of CsvTimeUnit.monthly: monthly_format)
 
 
-proc append*(self: CsvWritter, value: string, date: Time) {.inline.} = 
+proc append*(self: CsvWritter, value: string, date: Time) {.inline.} =
     self.processingQueue.addLast((value, date))
     self.processingQueueCapacity = max(self.processingQueueCapacity, len(self.processingQueue).uint64)
 
@@ -60,40 +61,42 @@ proc getFileName*(self: CsvWritter, dt: DateTime | Time): string =
     let d = dt.format(self.timeFormat)
     return fmt"{self.identifier}_{d}.csv"
 
-proc makeCallback*(self: CsvWritter, transformer: proc(data: JsonNode): string, iterateArray = false): proc(data: string): bool =
+proc makeCallback*(self: CsvWritter, transformer: proc(data: JsonNode): string, iterateArray = false): proc(
+        data: string): bool =
     result = proc (data: string): bool =
-                try:
-                    let j = parseJson(data)
-                    #echo j
-                    let n = now()
-                    if iterateArray and j.kind == JArray:
-                        for e in j:
-                            self.append(transformer(e), n)
-                    else:
-                        self.append(transformer(j), n)
-                    return false
-                except JsonParsingError:
-                    # TODO count error and throw if too much
-                    return false
+        try:
+            let j = parseJson(data)
+            #echo j
+            let n = now()
+            if iterateArray and j.kind == JArray:
+                for e in j:
+                    self.append(transformer(e), n)
+            else:
+                self.append(transformer(j), n)
+            return false
+        except JsonParsingError:
+            # TODO count error and throw if too much
+            return false
 
-proc makeCallback*(self: CsvWritter, transformer: proc(data: JsonNode, date: var Time): string, iterateArray = false): proc(data: string): bool =
+proc makeCallback*(self: CsvWritter, transformer: proc(data: JsonNode, date: var Time): string,
+        iterateArray = false): proc(data: string): bool =
     result = proc (data: string): bool =
-                try:
-                    let j = parseJson(data)
-                    #echo j
-                    if iterateArray and j.kind == JArray:
-                        for e in j:
-                            var date: Time
-                            let transformed = transformer(e, date)
-                            self.append(transformed, date)
-                    else:
-                        var date: Time
-                        let transformed = transformer(j, date)
-                        self.append(transformed, date)
-                    return false
-                except JsonParsingError:
-                    # TODO count error and throw if too much
-                    return false
+        try:
+            let j = parseJson(data)
+            #echo j
+            if iterateArray and j.kind == JArray:
+                for e in j:
+                    var date: Time
+                    let transformed = transformer(e, date)
+                    self.append(transformed, date)
+            else:
+                var date: Time
+                let transformed = transformer(j, date)
+                self.append(transformed, date)
+            return false
+        except JsonParsingError:
+            # TODO count error and throw if too much
+            return false
 
 
 proc drainProcessingQueue(self: CsvWritter, threshold: int) {.async.} =
@@ -121,7 +124,7 @@ proc drainProcessingQueue(self: CsvWritter, threshold: int) {.async.} =
                     raise
         finally:
             file.close()
-    
+
     if len(self.processingQueue) == 0 and self.processingQueueCapacity > shrink_threshold:
         self.shrink()
 

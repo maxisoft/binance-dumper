@@ -1,7 +1,7 @@
-import asyncdispatch
-import ws
 import std/times
 import std/monotimes
+import asyncdispatch
+import ws
 import ./cancellationtoken
 
 type FutureBinanceWebSocket* = ref object

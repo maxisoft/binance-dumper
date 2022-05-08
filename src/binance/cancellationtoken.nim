@@ -1,9 +1,9 @@
 import std/atomics
 
-type 
+type
     CancellationTokenValue* = object
         cancelled: Atomic[bool]
-    
+
     CancellationTokenRef* = ref CancellationTokenValue
 
     StaticCancellationTokenCancelled* = object
@@ -35,14 +35,14 @@ proc cancel*(self: var CancellationTokenValue, throws = true) =
 proc cancel*(self: StaticCancellationTokenCancelled | StaticCancellationTokenNotCancelled, throws = true) =
     discard
 
-proc cancelled*(self: CancellationTokenValue | CancellationTokenRef): bool {.inline.} = 
+proc cancelled*(self: CancellationTokenValue | CancellationTokenRef): bool {.inline.} =
     result = self.cancelled.load()
 
-proc cancelled*(self: var CancellationTokenValue): bool {.inline.} = 
+proc cancelled*(self: var CancellationTokenValue): bool {.inline.} =
     result = self.cancelled.load()
 
-proc cancelled*(self: StaticCancellationTokenCancelled): bool {.inline.} = 
+proc cancelled*(self: StaticCancellationTokenCancelled): bool {.inline.} =
     result = true
 
-proc cancelled*(self: StaticCancellationTokenNotCancelled): bool {.inline.} = 
+proc cancelled*(self: StaticCancellationTokenNotCancelled): bool {.inline.} =
     result = false

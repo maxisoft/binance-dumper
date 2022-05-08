@@ -9,17 +9,17 @@ import std/os
 import std/lists
 import ./cancellationtoken
 
-const 
+const
     DEFAULT_USER_AGENT = "binance_dumper/1.0"
     MAX_POOL_CONNECTIONS = 20
     FRESHLY_CREATED_LIMIT_PER_MINUTE = 20
     oneMinute = initDuration(minutes = 1)
     oneHour = initDuration(hours = 1)
-    
+
     EXPECTED_CONNECTION_LIFESPAN = oneHour
     REMOVE_AFTER_NO_USE_TIME = 10 * oneMinute
 
-type 
+type
     PoolEntry = ref object
         client: AsyncHttpClient
         useCounter: int64
@@ -41,7 +41,7 @@ proc newHttpPool*(): HttpPool =
 
 proc createAsyncHttpClient(): AsyncHttpClient =
     let ua = getEnv("USER_AGENT", DEFAULT_USER_AGENT)
-    result = newAsyncHttpClient(userAgent=ua)
+    result = newAsyncHttpClient(userAgent = ua)
 
 iterator clients*(self: HttpPool): var AsyncHttpClient =
     for item in mitems(self.pool):
@@ -51,7 +51,7 @@ iterator entries*(self: HttpPool): var PoolEntry =
     for item in mitems(self.pool):
         yield item
 
-proc rent*(self: HttpPool, useCount = 1, throwOnConnectLimit=true): var AsyncHttpClient =
+proc rent*(self: HttpPool, useCount = 1, throwOnConnectLimit = true): var AsyncHttpClient =
     var freshlyCreatedCounter = 0
     let now = getMonoTime()
     var c: uint64 = 0
@@ -66,7 +66,8 @@ proc rent*(self: HttpPool, useCount = 1, throwOnConnectLimit=true): var AsyncHtt
             inc freshlyCreatedCounter
         inc c
 
-    if self.pool.head != nil and (freshlyCreatedCounter >= FRESHLY_CREATED_LIMIT_PER_MINUTE or c >= self.max_connections):
+    if self.pool.head != nil and (freshlyCreatedCounter >= FRESHLY_CREATED_LIMIT_PER_MINUTE or c >=
+            self.max_connections):
         if throwOnConnectLimit:
             raise ConnectLimitError.newException("throwOnConnectLimit")
         var best = self.pool.tail
@@ -75,12 +76,12 @@ proc rent*(self: HttpPool, useCount = 1, throwOnConnectLimit=true): var AsyncHtt
                 best = n
         inc best.value.useCounter, useCount
         return best.value.client
-    
+
     self.pool.add(PoolEntry(client: createAsyncHttpClient(), creationDate: now, lastUseDate: now))
     inc self.pool.tail.value.useCounter, useCount
     return self.pool.tail.value.client
 
-proc rentAsync*(self: HttpPool): Future[AsyncHttpClient] {.async.}=
+proc rentAsync*(self: HttpPool): Future[AsyncHttpClient] {.async.} =
     while true:
         try:
             return self.rent(1, throwOnConnectLimit = true)
@@ -119,7 +120,7 @@ proc shouldClose(self: HttpPool, n: DoublyLinkedNode[PoolEntry], index = -1): bo
     if n.value.useCounter <= 0:
         if abs(now - n.value.creationDate) > EXPECTED_CONNECTION_LIFESPAN:
             return true
-        if abs(now - n.value.creationDate) > oneMinute and n.value.client.isClosed(nilCountsTrue=true):
+        if abs(now - n.value.creationDate) > oneMinute and n.value.client.isClosed(nilCountsTrue = true):
             return true
         if abs(now - n.value.lastUseDate) > REMOVE_AFTER_NO_USE_TIME:
             return true
@@ -131,7 +132,7 @@ proc mustClose(n: DoublyLinkedNode[PoolEntry]): bool {.inline.} =
         return true
     result = false
     let now = getMonoTime()
-    if n.value.client.isClosed(nilCountsTrue=false):
+    if n.value.client.isClosed(nilCountsTrue = false):
         return true
     if abs(now - n.value.creationDate) > 2 * EXPECTED_CONNECTION_LIFESPAN: # ie no connections should last 2hr
         return true
@@ -170,7 +171,7 @@ proc cleanup*(self: HttpPool) =
                 notify(self)
                 break
         inc i
-    
+
     if not self.pool.head.isNil and len(self.awaiters) == 0:
         self.awaiters = initDeque[Future[void]]()
 
@@ -187,10 +188,10 @@ template withClient*(self: HttpPool, code: untyped) =
         self.`return`(client)
 
 template withClient*(self: HttpPool, useCount: int, code: untyped) =
-    let client {.inject.} = self.rent(useCount=useCount)
+    let client {.inject.} = self.rent(useCount = useCount)
     try:
         code
     finally:
-        self.`return`(client, useCount=useCount)
+        self.`return`(client, useCount = useCount)
 
 

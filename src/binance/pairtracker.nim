@@ -4,7 +4,7 @@ import std/tables
 import std/strutils
 import std/jsonutils
 
-type 
+type
     PairEntry* = object
         pair: string
         firstSeen: int64

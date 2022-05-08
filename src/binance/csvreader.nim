@@ -1,7 +1,6 @@
 import std/re
 import std/asyncfile
 import std/parseutils
-import std/os
 import asyncdispatch
 
 let timestampRegex = re(r"^(?:.*\s)?(\d++)\s*,(?:[^\r\n]*?,?)*\s+$", {RegexFlag.reDotAll})
@@ -47,4 +46,5 @@ proc getLastTimestamp*(file: string, sizeHint = 7): Future[int64] {.async.} =
         result = getLastTimestampFromData(buff)
 
 when isMainModule:
+    import std/os
     echo waitFor getLastTimestamp(commandLineParams()[0])

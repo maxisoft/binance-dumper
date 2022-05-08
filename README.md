@@ -53,7 +53,7 @@ Start `./binance_dumper` and it'll write csv files into the **current working di
 
 One should use external restart mechanical/loop such as 
 - [systemd](https://github.com/maxisoft/binance-dumper/tree/dev/systemd)
--  [docker](https://github.com/maxisoft/binance-dumper/pkgs/container/binance_dumper%2Fbinance_dumper) to restart the soft in case of crash (eg internet disconnections)
+- [docker](https://github.com/maxisoft/binance-dumper/pkgs/container/binance_dumper%2Fbinance_dumper) to restart the soft in case of crash (eg internet disconnections)
 
 
 ## FAQ
