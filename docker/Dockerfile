@@ -7,7 +7,7 @@ RUN nimble install -y ws asynctools sorta
 RUN nim c -d:release --stackTrace:on --opt:speed -d:ssl --app:console --filenames:canonical -o:/bin/binance_dumper "/usr/src/binancedumper/main.nim"
 
 
-FROM ghcr.io/maxisoft/nim-docker-images/nim:latest_runtime
+FROM ghcr.io/maxisoft/nim-docker-images/nim-runtime
 ARG uid=1001 # the User id used to run program / create new output files
 ARG gid=1001
 LABEL maintainer="github.com/maxisoft" name="binance dumper" description="Track and save binance's futures data." url="https://github.com/maxisoft/binance-dumper" vcs-url="https://github.com/maxisoft/binance-dumper" org.opencontainers.image.source="https://github.com/maxisoft/binance-dumper"
