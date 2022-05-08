@@ -1,13 +1,11 @@
 import std/strformat
-
 import os
 import std/json
 import std/enumerate
 import std/monotimes
-import std/sequtils
 import std/times
-import std/tables
 import std/parseutils
+import std/sets
 import binance/cancellationtoken
 import binance/data
 import binance/websocket
@@ -60,51 +58,61 @@ proc main() =
         if parseInt(v, max_connections) == 0 or max_connections <= 0:
             raise Exception.newException(fmt"invalid BINANCE_HTTP_POOL_CONNECTION = {v}")
         pool.max_connections = max_connections.uint
-    
+
     var pairs = newSeq[string]()
     for p in freshPairTracker.listPair():
         pairs.add(p)
     let periods = ["5m", "1h", "1d"]
     let client = newBinanceHttpClient(pool)
+    var subFolders = initOrderedSet[string]()
+
+    template scheduleBinanceJob(job: untyped) =
+        sched.add(job)
+        subFolders.incl(job.symbol / job.name())
+        
+
     for i, pair in enumerate(pairs):
         if not dirExists(pair):
             createDir(pair)
-        if not dirExists(pair / openinterestName):
-            createDir(pair / openinterestName)
-        if not dirExists(pair / topTraderLongShortRatioAccountsName):
-            createDir(pair / topTraderLongShortRatioAccountsName)
-        if not dirExists(pair / topTraderLongShortRatioPositionsName):
-            createDir(pair / topTraderLongShortRatioPositionsName)
-        if not dirExists(pair / longShortRatioName):
-            createDir(pair / longShortRatioName)
-        if not dirExists(pair / takerBuySellRatioName):
-            createDir(pair / takerBuySellRatioName)
+
         for period in periods:
             block:
-                var csvOI = newCsvWritter($pair / openinterestName / $period, timeUnit=CsvTimeUnit.monthly)
-                let jobOi = newOpenInterestHistJob(symbol = pair, period = period, startTime = -1, stateLoader = stateLoader, csvWritter = csvOI, client = client, dueTime = startMonoTime)
+                var csvOI = newCsvWritter($pair / openinterestName / $period, timeUnit = CsvTimeUnit.monthly)
+                let jobOi = newOpenInterestHistJob(symbol = pair, period = period, startTime = -1,
+                        stateLoader = stateLoader, csvWritter = csvOI, client = client, dueTime = startMonoTime)
                 csvOI.identifier = $pair / jobOi.name() / $period
-                sched.add(jobOi)
+                scheduleBinanceJob(jobOi)
             block:
-                var csvtLSAR = newCsvWritter($pair / topTraderLongShortRatioAccountsName / $period, timeUnit=CsvTimeUnit.monthly)
-                let jobLSAR = newTopTraderLongShortRatioAccountsJob(symbol = pair, period = period, startTime = -1, stateLoader = stateLoader, csvWritter = csvtLSAR, client = client, dueTime = startMonoTime)
+                var csvtLSAR = newCsvWritter($pair / topTraderLongShortRatioAccountsName / $period,
+                        timeUnit = CsvTimeUnit.monthly)
+                let jobLSAR = newTopTraderLongShortRatioAccountsJob(symbol = pair, period = period, startTime = -1,
+                        stateLoader = stateLoader, csvWritter = csvtLSAR, client = client, dueTime = startMonoTime)
                 csvtLSAR.identifier = $pair / jobLSAR.name() / $period
-                sched.add(jobLSAR)
+                scheduleBinanceJob(jobLSAR)
             block:
-                var csvtLSPR = newCsvWritter($pair / topTraderLongShortRatioPositionsName / $period, timeUnit=CsvTimeUnit.monthly)
-                let jobLSPR = newTopTraderLongShortRatioPositionsJob(symbol = pair, period = period, startTime = -1, stateLoader = stateLoader, csvWritter = csvtLSPR, client = client, dueTime = startMonoTime)
+                var csvtLSPR = newCsvWritter($pair / topTraderLongShortRatioPositionsName / $period,
+                        timeUnit = CsvTimeUnit.monthly)
+                let jobLSPR = newTopTraderLongShortRatioPositionsJob(symbol = pair, period = period, startTime = -1,
+                        stateLoader = stateLoader, csvWritter = csvtLSPR, client = client, dueTime = startMonoTime)
                 csvtLSPR.identifier = $pair / jobLSPR.name() / $period
-                sched.add(jobLSPR)
+                scheduleBinanceJob(jobLSPR)
             block:
-                var csvLSR = newCsvWritter($pair / longShortRatioName / $period, timeUnit=CsvTimeUnit.monthly)
-                let jobLSR = newLongShortRatioJob(symbol = pair, period = period, startTime = -1, stateLoader = stateLoader, csvWritter = csvLSR, client = client, dueTime = startMonoTime)
+                var csvLSR = newCsvWritter($pair / longShortRatioName / $period, timeUnit = CsvTimeUnit.monthly)
+                let jobLSR = newLongShortRatioJob(symbol = pair, period = period, startTime = -1,
+                        stateLoader = stateLoader, csvWritter = csvLSR, client = client, dueTime = startMonoTime)
                 csvLSR.identifier = $pair / jobLSR.name() / $period
-                sched.add(jobLSR)
+                scheduleBinanceJob(jobLSR)
             block:
-                var csTBSV = newCsvWritter($pair / takerBuySellRatioName / $period, timeUnit=CsvTimeUnit.monthly)
-                let jobTBSV = newTakerBuySellVolumeJob(symbol = pair, period = period, startTime = -1, stateLoader = stateLoader, csvWritter = csTBSV, client = client, dueTime = startMonoTime)
+                var csTBSV = newCsvWritter($pair / takerBuySellRatioName / $period, timeUnit = CsvTimeUnit.monthly)
+                let jobTBSV = newTakerBuySellVolumeJob(symbol = pair, period = period, startTime = -1,
+                        stateLoader = stateLoader, csvWritter = csTBSV, client = client, dueTime = startMonoTime)
                 csTBSV.identifier = $pair / jobTBSV.name() / $period
-                sched.add(jobTBSV)
+                scheduleBinanceJob(jobTBSV)
+
+        
+    for folder in subFolders.items():
+        if not dirExists(folder):
+            createDir(folder)
 
     sched.add(newUpdatePairTrackerJob(stateLoader, pairTrackerInstance, client, getMonoTime()))
 

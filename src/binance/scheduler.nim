@@ -4,7 +4,6 @@ import std/times
 import std/monotimes
 import std/httpclient
 import std/tables
-import std/strformat
 import std/strutils
 import std/parseutils
 import std/heapqueue
@@ -19,7 +18,7 @@ import ./pairtracker
 
 
 
-type 
+type
     BaseJob {.inheritable.} = ref object of RootObj
         dueTime: MonoTime
         stateLoader: StateLoader
@@ -32,7 +31,7 @@ type
 
     BaseBinanceHistorycalEntryJob = ref object of BinanceHttpJob
         symbol: string
-        period : string
+        period: string
         startTime: int64
         parsedPeriod: Duration
         startTimeError: uint64
@@ -73,7 +72,8 @@ proc parsePeriod*(period: string): Duration =
         else: raise Exception.newException("not a valid period")
     )
 
-proc newBaseBinanceHistorycalEntryJob[T](symbol: string, period: string, startTime: int64, stateLoader: StateLoader, csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): T = 
+proc newBaseBinanceHistorycalEntryJob[T](symbol: string, period: string, startTime: int64, stateLoader: StateLoader,
+        csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): T =
     result.new()
     result.symbol = symbol
     result.period = period
@@ -85,22 +85,36 @@ proc newBaseBinanceHistorycalEntryJob[T](symbol: string, period: string, startTi
     result.parsedPeriod = parsePeriod(period)
 
 template newBBHEJob(x: untyped): untyped =
-    newBaseBinanceHistorycalEntryJob[x](symbol = symbol, period = period, startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client, dueTime = dueTime)
+    newBaseBinanceHistorycalEntryJob[x](symbol = symbol, period = period, startTime = startTime,
+            stateLoader = stateLoader, csvWritter = csvWritter, client = client, dueTime = dueTime)
 
-proc newOpenInterestHistJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader, csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): OpenInterestHistJob = 
+proc newOpenInterestHistJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader,
+        csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): OpenInterestHistJob =
     result = newBBHEJob(OpenInterestHistJob)
 
-proc newTopTraderLongShortRatioAccountsJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader, csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): TopTraderLongShortRatioAccountsJob = 
-    result = newBaseBinanceHistorycalEntryJob[TopTraderLongShortRatioAccountsJob](symbol = symbol, period = period, startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client, dueTime = dueTime)
+proc newTopTraderLongShortRatioAccountsJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader,
+        csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): TopTraderLongShortRatioAccountsJob =
+    result = newBaseBinanceHistorycalEntryJob[TopTraderLongShortRatioAccountsJob](symbol = symbol, period = period,
+            startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client,
+            dueTime = dueTime)
 
-proc newTopTraderLongShortRatioPositionsJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader, csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): TopTraderLongShortRatioPositionsJob = 
-    result = newBaseBinanceHistorycalEntryJob[TopTraderLongShortRatioPositionsJob](symbol = symbol, period = period, startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client, dueTime = dueTime)
+proc newTopTraderLongShortRatioPositionsJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader,
+        csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): TopTraderLongShortRatioPositionsJob =
+    result = newBaseBinanceHistorycalEntryJob[TopTraderLongShortRatioPositionsJob](symbol = symbol, period = period,
+            startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client,
+            dueTime = dueTime)
 
-proc newLongShortRatioJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader, csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): LongShortRatioJob = 
-    result = newBaseBinanceHistorycalEntryJob[LongShortRatioJob](symbol = symbol, period = period, startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client, dueTime = dueTime)
+proc newLongShortRatioJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader,
+        csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): LongShortRatioJob =
+    result = newBaseBinanceHistorycalEntryJob[LongShortRatioJob](symbol = symbol, period = period,
+            startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client,
+            dueTime = dueTime)
 
-proc newTakerBuySellVolumeJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader, csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): TakerBuySellVolumeJob = 
-    result = newBaseBinanceHistorycalEntryJob[TakerBuySellVolumeJob](symbol = symbol, period = period, startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client, dueTime = dueTime)
+proc newTakerBuySellVolumeJob*(symbol: string, period: string, startTime: int64, stateLoader: StateLoader,
+        csvWritter: CsvWritter, client: BinanceHttpClient, dueTime: MonoTime): TakerBuySellVolumeJob =
+    result = newBaseBinanceHistorycalEntryJob[TakerBuySellVolumeJob](symbol = symbol, period = period,
+            startTime = startTime, stateLoader = stateLoader, csvWritter = csvWritter, client = client,
+            dueTime = dueTime)
 
 
 proc `<`(a, b: BaseJob): bool = a.dueTime < b.dueTime
@@ -111,25 +125,31 @@ method invoke(this: BaseJob) {.base async.} =
 method incrementDueTime(this: BaseJob) {.base.} =
     raise Exception.newException("must be implemented")
 
-method listEntries(this: BaseBinanceHistorycalEntryJob, startTime: int64, limit: int): Future[seq[BaseBinanceHistorycalEntry]] {.base async.} =
+method listEntries(this: BaseBinanceHistorycalEntryJob, startTime: int64, limit: int): Future[seq[
+        BaseBinanceHistorycalEntry]] {.base async.} =
     raise Exception.newException("must be implemented")
 
 method name*(this: BaseBinanceHistorycalEntryJob): string {.base.} =
     raise Exception.newException("must be implemented")
 
+proc symbol*(self: BaseBinanceHistorycalEntryJob): string = 
+    result = self.symbol
+
 proc getLastTimestamp(self: BaseBinanceHistorycalEntryJob): Future[int64] {.async.} =
-    result = await self.stateLoader.getLastTimestamp(pair=self.symbol, name=self.name(), period=self.period)
+    result = await self.stateLoader.getLastTimestamp(pair = self.symbol, name = self.name(), period = self.period)
 
 method defaultStartTime(this: BaseBinanceHistorycalEntryJob): int64 {.base.} =
-    return (now().utc.toTime - initDuration(days=29)).toUnix * 1000
+    return (now().utc.toTime - initDuration(days = 29)).toUnix * 1000
 
 method defaultLimit(this: BaseBinanceHistorycalEntryJob): int {.base.} =
     return 400 # max 500 but better safe than sorry
 
 method incrementDueTime(this: BaseBinanceHistorycalEntryJob) =
-    this.dueTime = max(this.dueTime, getMonoTime()) + min(this.parsedPeriod, initDuration(hours=1))
+    this.dueTime = max(this.dueTime, getMonoTime()) + min(this.parsedPeriod, initDuration(hours = 1))
 
-proc doListEntries[T](self: BaseBinanceHistorycalEntryJob, startTime: int64, limit: int, getter: proc (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[T]]): Future[seq[BaseBinanceHistorycalEntry]] {.async.} =
+proc doListEntries[T](self: BaseBinanceHistorycalEntryJob, startTime: int64, limit: int, getter: proc (
+        client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[T]]): Future[seq[
+        BaseBinanceHistorycalEntry]] {.async.} =
     let tmp: seq[T] = await getter(self.client, startTime = startTime, limit = limit)
     result = newSeqOfCap[BaseBinanceHistorycalEntry](len(tmp))
     for item in tmp:
@@ -141,51 +161,63 @@ proc computeEndTime(startTime: int64, limit: int, period: Duration): int64 =
         assert limit > 0
         result = startTime + period.inSeconds * 1000 * limit
 
-method listEntries(this: OpenInterestHistJob, startTime: int64, limit: int): Future[seq[BaseBinanceHistorycalEntry]] {.async.} =
+method listEntries(this: OpenInterestHistJob, startTime: int64, limit: int): Future[seq[
+        BaseBinanceHistorycalEntry]] {.async.} =
     proc getter (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[OpenInterestHist]] {.async.} =
         let endTime = computeEndTime(startTime, limit, this.parsedPeriod)
-        result = await client.openInterestHist(symbol = this.symbol, period = this.period, startTime = startTime, endTime = endTime, limit = limit)
-    
+        result = await client.openInterestHist(symbol = this.symbol, period = this.period, startTime = startTime,
+                endTime = endTime, limit = limit)
+
     result = await doListEntries(this, startTime = startTime, limit = limit, getter = getter)
 
 method name(this: OpenInterestHistJob): string {.inline.} =
     result = openinterestName
 
-method listEntries(this: TopTraderLongShortRatioAccountsJob, startTime: int64, limit: int): Future[seq[BaseBinanceHistorycalEntry]] {.async.} =
-    proc getter (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[TopTraderLongShortRatioAccounts]] {.async.} =
+method listEntries(this: TopTraderLongShortRatioAccountsJob, startTime: int64, limit: int): Future[seq[
+        BaseBinanceHistorycalEntry]] {.async.} =
+    proc getter (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[
+            TopTraderLongShortRatioAccounts]] {.async.} =
         let endTime = computeEndTime(startTime, limit, this.parsedPeriod)
-        result = await client.topTraderLongShortRatioAccounts(symbol = this.symbol, period = this.period, startTime = startTime, endTime = endTime, limit = limit)
-    
+        result = await client.topTraderLongShortRatioAccounts(symbol = this.symbol, period = this.period,
+                startTime = startTime, endTime = endTime, limit = limit)
+
     result = await doListEntries(this, startTime = startTime, limit = limit, getter = getter)
 
 method name(this: TopTraderLongShortRatioAccountsJob): string {.inline.} =
     result = topTraderLongShortRatioAccountsName
 
-method listEntries(this: TopTraderLongShortRatioPositionsJob, startTime: int64, limit: int): Future[seq[BaseBinanceHistorycalEntry]] {.async.} =
-    proc getter (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[TopTraderLongShortRatioPositions]] {.async.} =
+method listEntries(this: TopTraderLongShortRatioPositionsJob, startTime: int64, limit: int): Future[seq[
+        BaseBinanceHistorycalEntry]] {.async.} =
+    proc getter (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[
+            TopTraderLongShortRatioPositions]] {.async.} =
         let endTime = computeEndTime(startTime, limit, this.parsedPeriod)
-        result = await client.topTraderLongShortRatioPositions(symbol = this.symbol, period = this.period, startTime = startTime, endTime = endTime, limit = limit)
-    
+        result = await client.topTraderLongShortRatioPositions(symbol = this.symbol, period = this.period,
+                startTime = startTime, endTime = endTime, limit = limit)
+
     result = await doListEntries(this, startTime = startTime, limit = limit, getter = getter)
 
 method name(this: TopTraderLongShortRatioPositionsJob): string {.inline.} =
     result = topTraderLongShortRatioPositionsName
 
-method listEntries(this: LongShortRatioJob, startTime: int64, limit: int): Future[seq[BaseBinanceHistorycalEntry]] {.async.} =
+method listEntries(this: LongShortRatioJob, startTime: int64, limit: int): Future[seq[
+        BaseBinanceHistorycalEntry]] {.async.} =
     proc getter (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[LongShortRatio]] {.async.} =
         let endTime = computeEndTime(startTime, limit, this.parsedPeriod)
-        result = await client.longShortRatio(symbol = this.symbol, period = this.period, startTime = startTime, endTime = endTime, limit = limit)
-    
+        result = await client.longShortRatio(symbol = this.symbol, period = this.period, startTime = startTime,
+                endTime = endTime, limit = limit)
+
     result = await doListEntries(this, startTime = startTime, limit = limit, getter = getter)
 
 method name(this: LongShortRatioJob): string {.inline.} =
     result = longShortRatioName
 
-method listEntries(this: TakerBuySellVolumeJob, startTime: int64, limit: int): Future[seq[BaseBinanceHistorycalEntry]] {.async.} =
+method listEntries(this: TakerBuySellVolumeJob, startTime: int64, limit: int): Future[seq[
+        BaseBinanceHistorycalEntry]] {.async.} =
     proc getter (client: BinanceHttpClient, startTime: int64, limit: int): Future[seq[LongShortRatio]] {.async.} =
         let endTime = computeEndTime(startTime, limit, this.parsedPeriod)
-        result = await client.longShortRatio(symbol = this.symbol, period = this.period, startTime = startTime, endTime = endTime, limit = limit)
-    
+        result = await client.longShortRatio(symbol = this.symbol, period = this.period, startTime = startTime,
+                endTime = endTime, limit = limit)
+
     result = await doListEntries(this, startTime = startTime, limit = limit, getter = getter)
 
 method name(this: TakerBuySellVolumeJob): string {.inline.} =
@@ -198,7 +230,7 @@ method invoke(this: BaseBinanceHistorycalEntryJob) {.async.} =
         let stt = await this.getLastTimestamp()
         if stt > 0:
             startTime = max(stt, startTime)
-            
+
     let limit = this.defaultLimit
     var history: seq[BaseBinanceHistorycalEntry]
     try:
@@ -209,13 +241,13 @@ method invoke(this: BaseBinanceHistorycalEntryJob) {.async.} =
             if len(msg) == 0:
                 return false
             return msg.startsWith("400")
-        
+
         if is400Error():
             # most of the time a 400 error is about the startTime parameter
             # try to increment startTime
             for i in 0..30:
                 # TODO binary search that
-                startTime = max(this.defaultStartTime() + initDuration(days=i).inMilliseconds, startTime)
+                startTime = max(this.defaultStartTime() + initDuration(days = i).inMilliseconds, startTime)
                 try:
                     history = await this.listEntries(startTime = startTime, limit = limit)
                     break
@@ -226,7 +258,7 @@ method invoke(this: BaseBinanceHistorycalEntryJob) {.async.} =
                         raise
         else:
             raise
-       
+
     if len(history) > 0:
         var maxTime: int64 = 0
         var tmp: int64 = 0
@@ -239,12 +271,13 @@ method invoke(this: BaseBinanceHistorycalEntryJob) {.async.} =
         var ts: SavedTimestampState
         ts.timestamp = $(maxTime)
         this.startTime = maxTime
-        
+
         if limit > 2 and len(history) >= limit - 2:
             # there's still more history to download later
             this.dueTime = max(this.dueTime, getMonoTime()) + initDuration(seconds = 1)
 
-proc newUpdatePairTrackerJob*(stateLoader: StateLoader, tracker: PairTracker, client: BinanceHttpClient, dueTime: MonoTime): UpdatePairTrackerJob = 
+proc newUpdatePairTrackerJob*(stateLoader: StateLoader, tracker: PairTracker, client: BinanceHttpClient,
+        dueTime: MonoTime): UpdatePairTrackerJob =
     result.new()
     result.stateLoader = stateLoader
     result.dueTime = dueTime
@@ -264,7 +297,7 @@ method invoke(this: UpdatePairTrackerJob) {.async.} =
         let status = s{"status"}.getStr()
         if status == "TRADING":
             updated = this.tracker.addPair(pair.toLowerAscii) or updated
-        
+
     if updated:
         let j = this.tracker.exportPairJson()
         var file = openAsync("pairs.json", fmWrite)
@@ -278,7 +311,7 @@ method invoke(this: UpdatePairTrackerJob) {.async.} =
 method incrementDueTime(this: UpdatePairTrackerJob) =
     this.dueTime = max(this.dueTime, getMonoTime()) + initDuration(minutes = 5)
 
-type 
+type
     JobScheduler* = ref object
         queue: HeapQueue[BaseJob]
         stateVersion: int64
@@ -286,7 +319,7 @@ type
         alock: AsyncLock
         maxTaskCount: int64
 
-const 
+const
     SCHEDULER_MIN_SLEEP_TICK = 250
     SCHEDULER_MAX_CONCURRENT_TASK = 20
     SCHEDULER_TASK_TIMEOUT = 10 * 60 * 1000
@@ -312,7 +345,7 @@ proc process(self: JobScheduler, item: BaseJob) {.async.} =
             item.incrementDueTime()
     finally:
         self.queue.push(item)
-    
+
 proc loop*(self: JobScheduler, token: CancellationToken) {.async.} =
     while len(self.queue) > 0 and not token.cancelled:
         let now = getMonoTime()
@@ -331,7 +364,7 @@ proc loop*(self: JobScheduler, token: CancellationToken) {.async.} =
                     jobs.add(process(self, item))
                 else:
                     self.queue.push(item)
-                
+
         if not await withTimeout(all jobs, SCHEDULER_TASK_TIMEOUT):
             raise TimeoutError.newException("SCHEDULER_TASK_TIMEOUT")
-        
+

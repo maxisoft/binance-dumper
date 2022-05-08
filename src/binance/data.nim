@@ -80,7 +80,7 @@ proc bookStreamToCsv*(payload: JsonNode, date: var Time): string =
     while len(result) > 0 and result[^1] == ',':
         result.setLen(len(result) - 1)
 
-proc bookStreamToCsv*(payload: string, date: var Time): string {.inline} =
+proc bookStreamToCsv*(payload: string, date: var Time): string {.inline.} =
     let n: JsonNode = parseJson(payload, rawFloats = true, rawIntegers = true)
     return bookStreamToCsv(n, date)
 
@@ -98,7 +98,7 @@ proc bookStreamCsvColumns*(payload: string): seq[string] =
     for i in 0..<((len(splitted) - 1) div 4):
         result.add(fmt"ask_price_{i + 1}")
         result.add(fmt"ask_quantity_{i + 1}")
-    
+
 
 proc markPriceToCsv*(payload: JsonNode, date: var Time): string =
     let n = payload
@@ -117,11 +117,11 @@ proc markPriceToCsv*(payload: JsonNode, date: var Time): string =
     while len(result) > 0 and result[^1] == ',':
         result.setLen(len(result) - 1)
 
-proc markPriceToCsv*(payload: string, date: var Time): string {.inline} =
-    let n: JsonNode = parseJson(payload, rawFloats=true, rawIntegers = true)
+proc markPriceToCsv*(payload: string, date: var Time): string {.inline.} =
+    let n: JsonNode = parseJson(payload, rawFloats = true, rawIntegers = true)
     return markPriceToCsv(n, date)
 
-iterator multiMarkPriceToCsv*(payload: JsonNode): (string, Time)  =
+iterator multiMarkPriceToCsv*(payload: JsonNode): (string, Time) =
     let n = payload
     assert n.kind == JArray
     var date: Time
@@ -130,7 +130,7 @@ iterator multiMarkPriceToCsv*(payload: JsonNode): (string, Time)  =
         yield (csv, date)
 
 iterator multiMarkPriceToCsv*(payload: string): (string, Time) =
-    let n: JsonNode = parseJson(payload, rawFloats=true, rawIntegers = true)
+    let n: JsonNode = parseJson(payload, rawFloats = true, rawIntegers = true)
     for r in multiMarkPriceToCsv(n):
         yield r
 
@@ -138,7 +138,7 @@ proc markPriceCsvColumns*(): array[6, string] =
     return ["time", "symbol", "mark_price", "index_price", "settle_price", "funding_rate"]
 
 
-method toCsv*(this: BaseBinanceHistorycalEntry, includeSymbol = false):string {.base.} =
+method toCsv*(this: BaseBinanceHistorycalEntry, includeSymbol = false): string {.base.} =
     raise Exception.newException("must be implemented")
 
 method date*(this: BaseBinanceHistorycalEntry): Time {.base inline.} =
