@@ -44,10 +44,10 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             docker buildx build \
-            --platform=linux/amd64,linux/arm/v7,linux/arm64/v8 \
+            --platform=linux/amd64,linux/arm/v7,linux/arm64/v8,linux/arm/v6,linux/ppc64le \
             --output "type=image,push=true" \
             --file ./docker/Dockerfile . \
-            --tag ghcr.io/${{ github.repository_owner }}/binance_dumper/binance_dumper_testing:latest
+            --tag ghcr.io/${{ github.repository_owner }}/binance_dumper/binance-dumper-testing:latest
 
     - name: Build dockerfile
       if: success() && github.ref == 'refs/heads/main'
@@ -56,7 +56,7 @@ jobs:
             set -x
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker buildx build \
-            --platform=linux/amd64,linux/arm/v7,linux/arm64/v8 \
+            --platform=linux/amd64,linux/arm/v7,linux/arm64/v8,linux/arm/v6,linux/ppc64le \
             --output "type=image,push=true" \
             --file ./docker/Dockerfile . \
-            --tag ghcr.io/${{ github.repository_owner }}/binance_dumper/binance_dumper:latest
+            --tag ghcr.io/${{ github.repository_owner }}/binance_dumper/binance-dumper:latest
