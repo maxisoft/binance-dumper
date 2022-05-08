@@ -1,5 +1,5 @@
 # Bitfinex Dumper
-Save binance futures's *long short ratios*, *open interst*, *buy sell ratio* of all *USDT* pairs.
+Save binance futures's *long short ratios*, *open interst*, *buy sell ratio* of futures markets.
 
 ## Description
 This project save multiples multiple binance futures data sources into [csv](https://en.wikipedia.org/wiki/Comma-separated_values) files.  
@@ -7,7 +7,7 @@ The program target data source with no permanent retention on binance side.
 Such csv may allow one to develop investment strategies, charts, analysis, ... without relying on external services (ie just from your own and raw data from the cex).
 
 ## Data sources
-Currently all those data from the usdt pairs are collected from the api:
+Currently all those data are collected from the api:
 
 - [topLongShortAccountRatio](https://binance-docs.github.io/apidocs/futures/en/#top-trader-long-short-ratio-accounts=)
 - [topLongShortPositionRatio](https://binance-docs.github.io/apidocs/futures/en/#top-trader-long-short-ratio-positions=)
@@ -43,7 +43,7 @@ One should use external restart mechanical/loop such as [systemd](https://github
 
 ## FAQ
 ### How can I configure tracked pairs ?
-Zero configuration mode for now so all USDT pairs found at program startup are tracked.
+Zero configuration mode for now so all pairs found at program startup are tracked.
 
 ### Program use too much cpu/ram
 By default the program use a pool of 20 http connections to do his tasks.  
