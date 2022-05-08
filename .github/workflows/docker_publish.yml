@@ -47,7 +47,7 @@ jobs:
             --platform=linux/amd64,linux/arm/v7,linux/arm64/v8,linux/arm/v6,linux/ppc64le \
             --output "type=image,push=true" \
             --file ./docker/Dockerfile . \
-            --tag ghcr.io/${{ github.repository_owner }}/binance_dumper/binance-dumper-testing:latest
+            --tag ghcr.io/${{ github.repository_owner }}/binance-dumper/binance-dumper-testing:latest
 
     - name: Build dockerfile
       if: success() && github.ref == 'refs/heads/main'
@@ -59,4 +59,4 @@ jobs:
             --platform=linux/amd64,linux/arm/v7,linux/arm64/v8,linux/arm/v6,linux/ppc64le \
             --output "type=image,push=true" \
             --file ./docker/Dockerfile . \
-            --tag ghcr.io/${{ github.repository_owner }}/binance_dumper/binance-dumper:latest
+            --tag ghcr.io/${{ github.repository_owner }}/binance-dumper/binance-dumper:latest

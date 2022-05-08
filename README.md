@@ -1,8 +1,17 @@
 # Bitfinex Dumper
 Save binance futures's *long short ratios*, *open interst*, *buy sell ratio* of futures markets.
 
+## TL;DR minimal recommended usage
+```bash
+# save csv into a binancedumper folder (into current directory !)
+mkdir -p binancedumper
+chown -R 1001 binancedumper
+docker run -it --rm -v `pwd`/binancedumper:/binancedumper ghcr.io/maxisoft/binance-dumper/binance-dumper:latest
+```
+
 ## Description
 This project save multiples multiple binance futures data sources into [csv](https://en.wikipedia.org/wiki/Comma-separated_values) files.  
+
 The program target data source with no permanent retention on binance side.  
 Such csv may allow one to develop investment strategies, charts, analysis, ... without relying on external services (ie just from your own and raw data from the cex).
 
@@ -18,6 +27,10 @@ Currently all those data are collected from the api:
 The resulting csv files use the same columns (but the pair column) as specified by the api docs.  
 
 ## Requirement
+### Docker container
+Just a running `docker` daemon (or docker compatible like `podman`) with network configured.
+
+### Building from source
 A standard working nim environment with
 - recent nim version (tested with **nim 1.6**)
 - C compiler
@@ -38,7 +51,9 @@ nim c -d:release --stackTrace:on --opt:speed -d:ssl --app:console --filenames:ca
 ## Usage
 Start `./binance_dumper` and it'll write csv files into the **current working directory**.  
 
-One should use external restart mechanical/loop such as [systemd](https://github.com/maxisoft/binance-dumper/tree/dev/systemd) or [docker](https://github.com/maxisoft/binance-dumper/pkgs/container/binance_dumper%2Fbinance_dumper) to restart the soft in case of crash (eg internet disconnections)
+One should use external restart mechanical/loop such as 
+- [systemd](https://github.com/maxisoft/binance-dumper/tree/dev/systemd)
+-  [docker](https://github.com/maxisoft/binance-dumper/pkgs/container/binance_dumper%2Fbinance_dumper) to restart the soft in case of crash (eg internet disconnections)
 
 
 ## FAQ
