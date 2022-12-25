@@ -392,3 +392,4 @@ bitfinex.db
 /*.db-journal
 /release
 /wd
+test.csv
