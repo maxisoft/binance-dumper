@@ -1,5 +1,6 @@
 import asyncdispatch
 import std/json
+import std/os
 import std/times
 import std/monotimes
 import std/httpclient
@@ -38,11 +39,19 @@ proc rateLimiter*(): var BinanceRateLimiter =
     result = rateLimiterSingleton.rateLimiter
 
 const
-    BASE_URL = "https://fapi.binance.com"
+    DEFAULT_BASE_URL = "https://fapi.binance.com"
     RATE_LIMITER_DEFAULT_LIMIT = 600         # 2400 last time checked
     RATE_LIMITER_LIMIT_SECURITY_FACTOR = 0.9 # limit the request/second even more (avoiding bans)
     RATE_LIMITER_SLEEP_TICK = 50             # ms
     oneMinute = initDuration(minutes = 1)
+
+let BASE_URL = (
+    if existsEnv("BINANCE_BASE_URL") and getEnv("BINANCE_BASE_URL").len > 0:
+        getEnv("BINANCE_BASE_URL")
+    else:
+        DEFAULT_BASE_URL
+)
+
 
 proc newBinanceHttpClient*(pool: HttpPool): BinanceHttpClient =
     result.new()
