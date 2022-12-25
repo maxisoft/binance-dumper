@@ -1,4 +1,4 @@
-# Bitfinex Dumper
+# Binance Dumper
 Save binance futures's *long short ratios*, *open interst*, *buy sell ratio* of futures markets.
 
 ## TL;DR minimal recommended usage
